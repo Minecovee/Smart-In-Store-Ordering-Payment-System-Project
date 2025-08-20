@@ -103,6 +103,46 @@ def get_all_menus():
         if conn:
             conn.close()
 
+# --- NEWLY ADDED: API Endpoint: Get Single Menu by ID ---
+@app.route('/api/menus/<int:menu_id>', methods=['GET'])
+def get_menu_by_id(menu_id):
+    """
+    Fetches a single menu item by its ID.
+    Returns a JSON object of the menu item or a 404 if not found.
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True) # Return results as dictionaries
+
+        sql_query = "SELECT id, restaurant_id, name, description, base_price, category, image_url, is_available, created_at, updated_at FROM menus WHERE id = %s"
+        cursor.execute(sql_query, (menu_id,))
+        menu_item = cursor.fetchone() # Fetch single row
+
+        if not menu_item:
+            return jsonify({"message": "Menu not found"}), 404
+
+        # Format fetched data for JSON response
+        item = menu_item.copy()
+        if 'base_price' in item and item['base_price'] is not None:
+            item['base_price'] = str(item['base_price'])
+        if 'created_at' in item and item['created_at'] is not None:
+            item['created_at'] = item['created_at'].isoformat()
+        if 'updated_at' in item and item['updated_at'] is not None:
+            item['updated_at'] = item['updated_at'].isoformat()
+
+        return jsonify(item), 200
+    except Exception as e:
+        print(f"Error in /api/menus/{menu_id} (GET single): {e}")
+        return jsonify({"error": "Failed to fetch menu by ID", "detail": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 # --- NEW: API Endpoint: Create Menu ---
 @app.route('/api/menus', methods=['POST'])
 def create_menu():
@@ -779,4 +819,4 @@ if __name__ == '__main__':
     # `port=5000` sets the listening port for the Flask application.
     # `host='0.0.0.0'` makes the server accessible from any IP address,
     # including your frontend running on localhost.
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    app.run(debug=True, port=5000, host='00.0') # Changed host to '0.0.0.0' for broader access within Docker or network
