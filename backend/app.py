@@ -16,6 +16,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure CORS (Cross-Origin Resource Sharing) for the Flask app.
+# Allows frontend from http://localhost:3000 to access these API endpoints.
 CORS(app, resources={r"/api/*": {"origins": [
     "http://localhost:3000"
 ]}})
@@ -34,43 +35,57 @@ def get_db_connection():
             password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", "food_shopdb"),
             port=int(os.getenv("DB_PORT", 3306)),
-            charset='utf8mb4'
+            charset='utf8mb4' # Ensure proper handling of Thai characters
         )
         return conn
     except mysql.connector.Error as err:
         print(f"Database connection error: {err}")
-        raise
+        raise # Re-raise the exception to be handled by the calling function
 
-# --- API Endpoint: Get All Menus (with optional restaurant_id filter) ---
+# --- API Endpoint: Get All Menus (with optional restaurant_id and category filters) ---
 @app.route('/api/menus', methods=['GET'])
 def get_all_menus():
     """
     Fetches menu items from the 'menus' table.
-    Can filter by 'restaurant_id' if provided as a query parameter.
+    Can filter by 'restaurant_id' and 'category' if provided as query parameters.
     """
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
+        cursor = conn.cursor(dictionary=True) # Return results as dictionaries
+
         restaurant_id = request.args.get('restaurant_id')
-        
+        category = request.args.get('category') # Get the category query parameter
+
         sql_query = "SELECT id, restaurant_id, name, description, base_price, category, image_url, is_available, created_at, updated_at FROM menus"
+        conditions = []
         params = []
 
         if restaurant_id:
-            sql_query += " WHERE restaurant_id = %s"
+            conditions.append("restaurant_id = %s")
             params.append(restaurant_id)
-        
+
+        # NEW: Add category filtering
+        if category and category != 'All': # 'All' is a common frontend convention to show all categories
+            conditions.append("category = %s")
+            params.append(category)
+
+        # Append WHERE clause if there are any conditions
+        if conditions:
+            sql_query += " WHERE " + " AND ".join(conditions)
+
         cursor.execute(sql_query, params)
         menus = cursor.fetchall()
-        
+
+        # Format fetched data for JSON response
         formatted_menus = []
         for menu_item in menus:
             item = menu_item.copy()
+            # Convert Decimal to string for JSON serialization
             if 'base_price' in item and item['base_price'] is not None:
                 item['base_price'] = str(item['base_price'])
+            # Format datetime objects to ISO 8601 strings
             if 'created_at' in item and item['created_at'] is not None:
                 item['created_at'] = item['created_at'].isoformat()
             if 'updated_at' in item and item['updated_at'] is not None:
@@ -82,6 +97,7 @@ def get_all_menus():
         print(f"Error in /api/menus (GET all): {e}")
         return jsonify({"error": "Failed to fetch menus", "detail": str(e)}), 500
     finally:
+        # Ensure database resources are closed
         if cursor:
             cursor.close()
         if conn:
@@ -127,7 +143,7 @@ def create_menu():
         return jsonify({"message": "Menu created successfully", "id": new_menu_id}), 201
     except Exception as e:
         if conn:
-            conn.rollback()
+            conn.rollback() # Rollback transaction in case of error
         print(f"Error in /api/menus (POST): {e}")
         return jsonify({"error": "Failed to create menu", "detail": str(e)}), 500
     finally:
@@ -152,7 +168,7 @@ def update_menu(menu_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Build dynamic update query
         set_clauses = []
         params = []
@@ -187,7 +203,7 @@ def update_menu(menu_id):
         return jsonify({"message": "Menu updated successfully"}), 200
     except Exception as e:
         if conn:
-            conn.rollback()
+            conn.rollback() # Rollback transaction in case of error
         print(f"Error in /api/menus/{menu_id} (PUT/PATCH): {e}")
         return jsonify({"error": "Failed to update menu", "detail": str(e)}), 500
     finally:
@@ -216,7 +232,7 @@ def delete_menu(menu_id):
         return jsonify({"message": "Menu deleted successfully"}), 200
     except Exception as e:
         if conn:
-            conn.rollback()
+            conn.rollback() # Rollback transaction in case of error
         print(f"Error in /api/menus/{menu_id} (DELETE): {e}")
         return jsonify({"error": "Failed to delete menu", "detail": str(e)}), 500
     finally:
@@ -237,7 +253,7 @@ def get_all_orders():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         restaurant_id = request.args.get('restaurant_id')
 
         sql_query = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders"
@@ -246,7 +262,7 @@ def get_all_orders():
         if restaurant_id:
             sql_query += " WHERE restaurant_id = %s"
             params.append(restaurant_id)
-        
+
         cursor.execute(sql_query, params)
         orders = cursor.fetchall()
 
@@ -281,7 +297,7 @@ def get_order_by_id(order_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         # Fetch main order details
         sql_order = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders WHERE id = %s"
         cursor.execute(sql_order, (order_id,))
@@ -302,17 +318,18 @@ def get_order_by_id(order_id):
             order['order_time'] = order['order_time'].isoformat()
         if 'updated_at' in order and order['updated_at'] is not None:
             order['updated_at'] = order['updated_at'].isoformat()
-        
+
         formatted_items = []
         for item in items:
-            if 'price_at_order' in item and item['price_at_order'] is not None:
-                item['price_at_order'] = str(item['price_at_order'])
-            if 'created_at' in item and item['created_at'] is not None:
-                item['created_at'] = item['created_at'].isoformat()
-            if 'updated_at' in item and item['updated_at'] is not None:
-                item['updated_at'] = item['updated_at'].isoformat()
-            formatted_items.append(item)
-            
+            item_copy = item.copy()
+            if 'price_at_order' in item_copy and item_copy['price_at_order'] is not None:
+                item_copy['price_at_order'] = str(item_copy['price_at_order'])
+            if 'created_at' in item_copy and item_copy['created_at'] is not None:
+                item_copy['created_at'] = item_copy['created_at'].isoformat()
+            if 'updated_at' in item_copy and item_copy['updated_at'] is not None:
+                item_copy['updated_at'] = item_copy['updated_at'].isoformat()
+            formatted_items.append(item_copy)
+
         order['items'] = formatted_items # Attach items to the order object
 
         return jsonify(order), 200
@@ -348,16 +365,16 @@ def create_order():
         return jsonify({"error": "Missing required order data for main order"}), 400
     if not isinstance(items, list):
         return jsonify({"error": "Items must be a list"}), 400
-    
+
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        conn.autocommit = False # Start a transaction
+        conn.autocommit = False # Start a transaction for atomicity
         cursor = conn.cursor()
 
         current_time = datetime.now()
-        
+
         # 1. Insert into the 'orders' table
         sql_order = """
         INSERT INTO orders (restaurant_id, table_number, total_amount, status, payment_status, order_time, qr_code_url, updated_at)
@@ -369,11 +386,11 @@ def create_order():
             total_amount,
             status,
             payment_status,
-            current_time,      # order_time (now serves as creation timestamp)
+            current_time,       # order_time (now serves as creation timestamp)
             qr_code_url,
-            current_time       # updated_at
+            current_time        # updated_at
         )
-        
+
         cursor.execute(sql_order, params_order)
         new_order_id = cursor.lastrowid # Get the ID of the newly created order
 
@@ -402,25 +419,26 @@ def create_order():
                     current_time  # updated_at for order_item
                 )
                 cursor.execute(sql_order_item, params_order_item)
-        
+
         conn.commit() # Commit the entire transaction
         return jsonify({"message": "Order and items created successfully", "order_id": new_order_id}), 201
     except ValueError as ve:
         if conn:
-            conn.rollback()
+            conn.rollback() # Rollback in case of validation error
         print(f"Order item validation error: {ve}")
         return jsonify({"error": "Failed to create order due to item data validation", "detail": str(ve)}), 400
     except Exception as e:
         if conn:
-            conn.rollback()
+            conn.rollback() # Rollback in case of any other error
         print(f"Error in /api/orders (POST): {e}")
         return jsonify({"error": "Failed to create order", "detail": str(e)}), 500
     finally:
+        # Ensure resources are closed and autocommit is reset
         if cursor:
             cursor.close()
         if conn:
             conn.close()
-            conn.autocommit = True # Reset autocommit for good practice
+            # conn.autocommit = True # Not needed if connection is closed after use
 
 # --- NEW: API Endpoint: Update Order ---
 @app.route('/api/orders/<int:order_id>', methods=['PUT', 'PATCH'])
@@ -438,7 +456,7 @@ def update_order(order_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         set_clauses = []
         params = []
         current_time = datetime.now()
@@ -449,10 +467,10 @@ def update_order(order_id):
                 params.append(value)
             elif key == 'total_amount':
                 set_clauses.append(f"{key} = %s")
-                params.append(float(value))
+                params.append(float(value)) # Convert to float for DB
             elif key == 'table_number':
                 set_clauses.append(f"{key} = %s")
-                params.append(int(value))
+                params.append(int(value)) # Convert to int for DB
             elif key == 'qr_code_url': # Allow updating QR code URL
                 set_clauses.append(f"{key} = %s")
                 params.append(value)
@@ -525,7 +543,7 @@ def get_order_items_by_order_id(order_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         sql_query = "SELECT id, order_id, menu_id, quantity, price_at_order, notes, created_at, updated_at FROM order_items WHERE order_id = %s"
         cursor.execute(sql_query, (order_id,))
         items = cursor.fetchall()
@@ -542,7 +560,8 @@ def get_order_items_by_order_id(order_id):
             formatted_items.append(item_copy)
 
         if not formatted_items:
-            return jsonify({"message": "No items found for this order or order does not exist", "items": []}), 200
+            # Return 200 with empty list if no items, rather than 404, as the order might exist.
+            return jsonify({"message": "No items found for this order", "items": []}), 200
 
         return jsonify(formatted_items), 200
     except Exception as e:
@@ -567,7 +586,7 @@ def get_all_employees():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         restaurant_id = request.args.get('restaurant_id')
 
         # Updated: Removed 'email' from SELECT query
@@ -593,7 +612,7 @@ def get_all_employees():
             if 'updated_at' in item and item['updated_at'] is not None:
                 item['updated_at'] = item['updated_at'].isoformat()
             formatted_employees.append(item)
-        
+
         return jsonify(formatted_employees), 200
     except Exception as e:
         print(f"Error in /api/employees (GET all): {e}")
@@ -616,12 +635,10 @@ def create_employee():
     restaurant_id = data.get('restaurant_id')
     full_name = data.get('full_name')
     position = data.get('position')
-    # Removed email from request data
     phone_number = data.get('phone_number')
     salary = data.get('salary')
     hire_date_str = data.get('hire_date')
 
-    # Updated: Removed email from required fields validation
     if not restaurant_id or not full_name or not position or salary is None or not hire_date_str:
         return jsonify({"error": "Missing required employee data: restaurant_id, full_name, position, salary, hire_date"}), 400
 
@@ -633,7 +650,6 @@ def create_employee():
         current_time = datetime.now()
         hire_date = datetime.strptime(hire_date_str, '%Y-%m-%d').date()
 
-        # Updated: Removed 'email' from INSERT statement and parameters
         sql = """
         INSERT INTO employees (restaurant_id, full_name, position, phone_number, salary, hire_date, created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -674,13 +690,12 @@ def update_employee(employee_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         set_clauses = []
         params = []
         current_time = datetime.now()
 
         for key, value in data.items():
-            # Updated: Removed 'email' from updatable fields
             if key in ['full_name', 'position', 'phone_number']:
                 set_clauses.append(f"{key} = %s")
                 params.append(value)
@@ -690,7 +705,6 @@ def update_employee(employee_id):
             elif key == 'hire_date':
                 set_clauses.append(f"{key} = %s")
                 params.append(datetime.strptime(value, '%Y-%m-%d').date())
-            # restaurant_id might be immutable
 
         set_clauses.append("updated_at = %s") # Always update updated_at
         params.append(current_time)
@@ -766,4 +780,3 @@ if __name__ == '__main__':
     # `host='0.0.0.0'` makes the server accessible from any IP address,
     # including your frontend running on localhost.
     app.run(debug=True, port=5000, host='0.0.0.0')
-

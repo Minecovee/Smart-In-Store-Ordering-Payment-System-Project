@@ -66,7 +66,11 @@ const App: React.FC = () => {
   const [singleOrder, setSingleOrder] = useState<Order | null>(null); // For fetching single order
   const [orderItemsForOrder, setOrderItemsForOrder] = useState<OrderItem[] | null>(null); // For fetching order items
   const [testApiMessage, setTestApiMessage] = useState<string | null>(null);
-  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(null); // NEW: State for PromptPay QR Code URL
+  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(null);
+
+  // Category filtering states
+  const [selectedCategory, setSelectedCategory] = useState<string>('All'); // Default to 'All'
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   // --- Create Order Form States ---
   const [newOrderTableNumber, setNewOrderTableNumber] = useState<string>('');
@@ -99,7 +103,6 @@ const App: React.FC = () => {
 
   // --- Update/Delete Common States ---
   const [entityIdToManage, setEntityIdToManage] = useState<string>('');
-  // Removed updatePayload state as we're moving to specific fields for update
   const [updateSuccessMessage, setUpdateSuccessMessage] = useState<string | null>(null);
 
   // --- States for Edit Menu Form ---
@@ -135,7 +138,7 @@ const App: React.FC = () => {
     setSingleOrder(null);
     setOrderItemsForOrder(null);
     setTestApiMessage(null);
-    setGeneratedQrCodeUrl(null); // NEW: Reset QR Code URL
+    setGeneratedQrCodeUrl(null);
     setCreateOrderMessage(null);
     setNewOrderTableNumber('');
     setNewOrderTotalAmount('');
@@ -160,7 +163,7 @@ const App: React.FC = () => {
     setNewEmployeeHireDate(new Date().toISOString().slice(0, 10));
     setCreateEmployeeMessage(null);
     setEntityIdToManage('');
-    setUpdateSuccessMessage(null); // Reset update message
+    setUpdateSuccessMessage(null);
 
     // Reset edit form states
     setEditMenuName('');
@@ -181,6 +184,10 @@ const App: React.FC = () => {
     setEditEmployeePhoneNumber('');
     setEditEmployeeSalary('');
     setEditEmployeeHireDate('');
+
+    // Reset category selection
+    setSelectedCategory('All');
+    setAvailableCategories([]);
   };
 
   // --- Function to handle Restaurant ID input change ---
@@ -194,18 +201,37 @@ const App: React.FC = () => {
 
   // --- API Functions ---
 
-  // Fetches all menus for the selected restaurant
-  const fetchMenus = async () => {
+  // Fetches all menus for the selected restaurant, with optional category filter
+  const fetchMenus = async (category: string = selectedCategory) => {
     if (selectedRestaurantId === null || isNaN(selectedRestaurantId)) {
       setError("กรุณาป้อน Restaurant ID ที่ถูกต้องก่อน");
       return;
     }
-    resetAllStates();
+    // Only reset specific states that pertain to menu display, not all states
+    setMenus(null); // Clear previous menus
+    setError(null); // Clear errors
     setLoading(true);
     setCurrentDisplay('menus');
+    setSelectedCategory(category); // Update selected category state
+
     try {
-      const response = await axios.get<Menu[]>(`http://localhost:5000/api/menus?restaurant_id=${selectedRestaurantId}`);
+      let url = `http://localhost:5000/api/menus?restaurant_id=${selectedRestaurantId}`;
+      if (category && category !== 'All') {
+        url += `&category=${encodeURIComponent(category)}`;
+      }
+      
+      const response = await axios.get<Menu[]>(url);
       setMenus(response.data);
+
+      // Extract unique categories from fetched menus for the filter buttons
+      const uniqueCategories = new Set<string>();
+      response.data.forEach(menu => {
+        if (menu.category) {
+          uniqueCategories.add(menu.category);
+        }
+      });
+      setAvailableCategories(['All', ...Array.from(uniqueCategories).sort()]);
+
     } catch (err: any) {
       console.error("Error fetching menus:", err);
       setError("ไม่สามารถดึงข้อมูลเมนูได้ กรุณาตรวจสอบ Backend (พอร์ต 5000) และการเชื่อมต่อฐานข้อมูล");
@@ -213,6 +239,12 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // No handleCategoryChange needed for dropdown, now handleButtonClick handles it
+  const handleCategoryButtonClick = (category: string) => {
+    fetchMenus(category);
+  };
+
 
   // Creates a new menu item
   const createMenu = async () => {
@@ -248,16 +280,16 @@ const App: React.FC = () => {
       setNewMenuCategory('');
       setNewMenuImageUrl('');
       setNewMenuIsAvailable(true);
-      fetchMenus(); // Refresh menu list
+      fetchMenus(); // Refresh menu list (and categories)
     } catch (err: any) {
       console.error("Error creating menu:", err);
-      setError(`ไม่สามารถสร้างเมนูได้ : ${err.response?.data?.detail || err.message}`);
+      setError(`ไม่สามารถสร้างเมนูได้: ${err.response?.data?.detail || err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // NEW: Load Menu Data for Editing
+  // Load Menu Data for Editing
   const loadMenuForEdit = async () => {
     if (!entityIdToManage || isNaN(parseInt(entityIdToManage, 10))) {
       setError("กรุณาป้อน Menu ID ที่ถูกต้องเพื่อโหลดข้อมูล");
@@ -298,7 +330,6 @@ const App: React.FC = () => {
       const payload: Partial<Menu> = {
         name: editMenuName,
         description: editMenuDescription,
-        // ✅ Fixed: Convert number from parseFloat to string for base_price
         base_price: parseFloat(editMenuPrice).toFixed(2), 
         category: editMenuCategory,
         image_url: editMenuImageUrl,
@@ -315,7 +346,7 @@ const App: React.FC = () => {
       setEditMenuCategory('');
       setEditMenuImageUrl('');
       setEditMenuIsAvailable(false);
-      fetchMenus(); // Refresh menu list
+      fetchMenus(); // Refresh menu list (and categories)
     } catch (err: any) {
       console.error("Error updating menu:", err);
       setError(`ไม่สามารถอัปเดตเมนูได้: ${err.response?.data?.detail || err.message}`);
@@ -341,7 +372,7 @@ const App: React.FC = () => {
       const response = await axios.delete(`http://localhost:5000/api/menus/${entityIdToManage}`);
       setUpdateSuccessMessage(`เมนู ID ${entityIdToManage} ถูกลบ: ${response.data.message}`);
       setEntityIdToManage(''); // Clear ID after successful operation
-      fetchMenus(); // Refresh menu list
+      fetchMenus(); // Refresh menu list (and categories)
     } catch (err: any) {
       console.error("Error deleting menu:", err);
       setError(`ไม่สามารถลบเมนูได้: ${err.response?.data?.detail || err.message}`);
@@ -414,7 +445,7 @@ const App: React.FC = () => {
     }
   };
 
-  // NEW: Load Order Data for Editing
+  // Load Order Data for Editing
   const loadOrderForEdit = async () => {
     if (!entityIdToManage || isNaN(parseInt(entityIdToManage, 10))) {
       setError("กรุณาป้อน Order ID ที่ถูกต้องเพื่อโหลดข้อมูล");
@@ -582,7 +613,7 @@ const App: React.FC = () => {
     }
   };
 
-  // NEW: Function to generate PromptPay QR Code
+  // Function to generate PromptPay QR Code
   const handleGeneratePromptPayQr = () => {
     if (!singleOrder || !singleOrder.total_amount) {
       setError("ไม่พบข้อมูล Order หรือยอดรวมสำหรับสร้าง QR Code กรุณาโหลด Order ก่อน");
@@ -660,7 +691,7 @@ const App: React.FC = () => {
     }
   };
 
-  // NEW: Load Employee Data for Editing
+  // Load Employee Data for Editing
   const loadEmployeeForEdit = async () => {
     if (!entityIdToManage || isNaN(parseInt(entityIdToManage, 10))) {
       setError("กรุณาป้อน Employee ID ที่ถูกต้องเพื่อโหลดข้อมูล");
@@ -670,11 +701,6 @@ const App: React.FC = () => {
     setError(null);
     setUpdateSuccessMessage(null); // Clear previous messages
     try {
-      // Note: Backend's GET /api/employees doesn't support direct ID fetch.
-      // It supports filtering by restaurant_id or getting all.
-      // If you need direct ID fetch, consider adding a new backend endpoint like /api/employees/<int:id>.
-      // For now, we'll try to get all employees and find by ID locally for demonstration.
-      // A more robust solution would involve a dedicated endpoint on the backend.
       const response = await axios.get<Employee[]>(`http://localhost:5000/api/employees?restaurant_id=${selectedRestaurantId}`);
       const employeeData = response.data.find(emp => emp.id === parseInt(entityIdToManage, 10));
 
@@ -711,7 +737,7 @@ const App: React.FC = () => {
         full_name: editEmployeeFullName,
         position: editEmployeePosition,
         phone_number: editEmployeePhoneNumber || null,
-        salary: parseFloat(editEmployeeSalary).toFixed(2), // ✅ Fixed: Convert number from parseFloat to string for salary
+        salary: parseFloat(editEmployeeSalary).toFixed(2), // Fixed: Convert number from parseFloat to string for salary
         hire_date: editEmployeeHireDate,
       };
 
@@ -780,7 +806,7 @@ const App: React.FC = () => {
   return (
     <div className="App" style={appContainerStyle}>
       <header style={headerStyle}>
-        <h1>Backend Test01</h1>
+        <h1>Backend API Test Panel</h1>
         <p>ทดสอบการเชื่อมต่อ Backend (Flask) และดึง/จัดการข้อมูลจากฐานข้อมูล</p>
       </header>
 
@@ -799,7 +825,7 @@ const App: React.FC = () => {
 
       {/* Main Navigation Buttons */}
       <div style={buttonContainerStyle}>
-        <button onClick={fetchMenus} disabled={loading || selectedRestaurantId === null || isNaN(selectedRestaurantId)} style={buttonStyle}>
+        <button onClick={() => fetchMenus('All')} disabled={loading || selectedRestaurantId === null || isNaN(selectedRestaurantId)} style={buttonStyle}>
           {loading && currentDisplay === 'menus' ? 'กำลังดึงเมนู...' : 'ดึงข้อมูล Menus'}
         </button>
         <button onClick={fetchOrders} disabled={loading || selectedRestaurantId === null || isNaN(selectedRestaurantId)} style={buttonStyle}>
@@ -833,6 +859,27 @@ const App: React.FC = () => {
           อัปเดต/ลบ Employee
         </button>
       </div>
+      
+      {/* NEW: Category Filter Buttons - Always visible if Restaurant ID is selected */}
+      {selectedRestaurantId !== null && !isNaN(selectedRestaurantId) && availableCategories.length > 0 && (
+        <div style={categoryButtonContainerStyle}>
+          <span style={labelStyle}>กรองตามหมวดหมู่:</span>
+          {availableCategories.map(category => (
+            <button
+              key={category}
+              onClick={() => handleCategoryButtonClick(category)}
+              style={{
+                ...buttonStyle,
+                backgroundColor: selectedCategory === category ? '#0056b3' : '#6c757d', // Highlight selected button
+                margin: '5px' // Add some margin between buttons
+              }}
+              disabled={loading}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main Results and Forms Area */}
       <div style={resultsContainerStyle}>
@@ -844,10 +891,10 @@ const App: React.FC = () => {
         )}
 
         {/* --- Display Menus --- */}
-        {currentDisplay === 'menus' && menus && (
+        {currentDisplay === 'menus' && (
           <div style={dataDisplayGridStyle}>
             <h2>ข้อมูลเมนู (ร้าน ID: {selectedRestaurantId})</h2>
-            {menus.length > 0 ? (
+            {menus && menus.length > 0 ? (
               menus.map((menu: Menu) => (
                 <div key={menu.id} style={itemCardStyle}>
                   <h3>{menu.name} (ID: {menu.id})</h3>
@@ -861,7 +908,8 @@ const App: React.FC = () => {
                       src={menu.image_url}
                       alt={menu.name}
                       style={{ maxWidth: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '10px' }}
-                      onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => { e.currentTarget.onerror = null; e.currentTarget.src="https://placehold.co/150x100/A0A0A0/FFFFFF?text=No+Image" }}
+                      // Improved onError: Uses a placeholder image with text for clarity
+                      onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => { e.currentTarget.onerror = null; e.currentTarget.src="https://placehold.co/150x100/CCCCCC/666666?text=No+Image" }}
                     />
                   )}
                   <p style={{ fontSize: '0.8em', color: '#666' }}>สร้างเมื่อ: {menu.created_at ? new Date(menu.created_at).toLocaleString() : 'N/A'}</p>
@@ -869,7 +917,7 @@ const App: React.FC = () => {
                 </div>
               ))
             ) : (
-              <p>ไม่พบเมนูอาหารสำหรับร้านนี้ในฐานข้อมูล</p>
+              <p>ไม่พบเมนูอาหารสำหรับร้านนี้ในฐานข้อมูล หรือไม่พบในหมวดหมู่ที่เลือก</p>
             )}
           </div>
         )}
@@ -923,7 +971,7 @@ const App: React.FC = () => {
               </button>
             </div>
             
-            {/* NEW: Specific Input Fields for Menu Update */}
+            {/* Specific Input Fields for Menu Update */}
             <h3 style={{ marginTop: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>แก้ไขข้อมูลเมนู</h3>
             <div style={formGroupStyle}>
               <label htmlFor="editMenuName" style={labelStyle}>ชื่อเมนู:</label>
@@ -1194,7 +1242,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* NEW: Specific Input Fields for Order Update */}
+            {/* Specific Input Fields for Order Update */}
             <h3 style={{ marginTop: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>แก้ไขข้อมูล Order</h3>
             <div style={formGroupStyle}>
               <label htmlFor="editOrderTableNumber" style={labelStyle}>หมายเลขโต๊ะ:</label>
@@ -1306,7 +1354,7 @@ const App: React.FC = () => {
               </button>
             </div>
             
-            {/* NEW: Specific Input Fields for Employee Update */}
+            {/* Specific Input Fields for Employee Update */}
             <h3 style={{ marginTop: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>แก้ไขข้อมูลพนักงาน</h3>
             <div style={formGroupStyle}>
               <label htmlFor="editEmployeeFullName" style={labelStyle}>ชื่อ-นามสกุล:</label>
@@ -1513,5 +1561,18 @@ const addedItemStyle: React.CSSProperties = {
   marginBottom: '8px',
   boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
 };
+
+const categoryButtonContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+  gap: '10px', // Space between buttons
+  marginBottom: '20px',
+  padding: '15px',
+  backgroundColor: '#e6f7ff',
+  borderRadius: '8px',
+  border: '1px solid #91d5ff',
+};
+
 
 export default App;
