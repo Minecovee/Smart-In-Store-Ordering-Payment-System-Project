@@ -251,7 +251,7 @@ const App: React.FC = () => {
       fetchMenus(); // Refresh menu list
     } catch (err: any) {
       console.error("Error creating menu:", err);
-      setError(`ไม่สามารถสร้างเมนูได้: ${err.response?.data?.detail || err.message}`);
+      setError(`ไม่สามารถสร้างเมนูได้ : ${err.response?.data?.detail || err.message}`);
     } finally {
       setLoading(false);
     }
