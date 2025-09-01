@@ -1,237 +1,260 @@
-// pages/OrderFoodPage.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
 
-const MENU_CATEGORIES = ["อาหารจานเดียว", "เส้น", "ซุป", "เครื่องดื่ม"];
-
-const MENU_ITEMS = [
-  { id: 1, name: "มันเชื่อม", price: 60, image: "src/menus/มันเชื่อม.jpg", category: "เครื่องดื่ม" },
-  { id: 2, name: "น้ำฝรั่ง", price: 70, image: "src/menus/น้ำฝรั่ง.jpg", category: "เครื่องดื่ม" },
-  { id: 3, name: "ชามะนาว", price: 120, image: "src/menus/ชามะนาว.jpg", category: "เครื่องดื่ม" },
-  { id: 4, name: "ต้มยำปลา", price: 40, image: "src/menus/ต้มยำปลา.webp", category: "ซุป" },
-  { id: 5, name: "เส้นหมี่น้ำตก", price: 60, image: "src/menus/เส้นหมี่น้ำตก.webp", category: "เส้น" },
-  { id: 6, name: "เส้นเล็กต้มยำ", price: 70, image: "src/menus/เส้นเล็กต้มยำ.jpg", category: "เส้น" },
-  { id: 7, name: "ข้าวหน้าเป็ด", price: 120, image: "src/menus/ข้าวหน้าเป็ด.jpg", category: "อาหารจานเดียว" },
-  { id: 8, name: "ข้าวไข่ข้น", price: 40, image: "src/menus/ข้าวไข่ข้น.jpg", category: "อาหารจานเดียว" },
-  { id: 9, name: "ข้าวผัดต้มยำ", price: 60, image: "src/menus/ข้าวผัดต้มยำ.webp", category: "อาหารจานเดียว" },
-  { id: 10, name: "ยำวุ้นเส้น", price: 70, image: "src/menus/ยำวุ้นเส้น.webp", category: "อาหารจานเดียว" },
-  { id: 11, name: "ขนมถ้วย", price: 120, image: "src/menus/ขนมถ้วย.webp", category: "เครื่องดื่ม" },
-  { id: 12, name: "ฟักทองแกงบวช", price: 40, image: "src/menus/ฟักทองแกงบวช.jpg", category: "เครื่องดื่ม" },
-  { id: 13, name: "ข้าวผัด", price: 60, image: "src/menus/ข้าวผัด.jpg", category: "อาหารจานเดียว" },
-  { id: 14, name: "แกงส้ม", price: 70, image: "src/menus/แกงส้ม.jpg", category: "ซุป" },
-  { id: 15, name: "ผัดไทยกุ้งสด", price: 120, image: "src/menus/ผัดไทยกุ้งสด.jpg", category: "เส้น" },
-  { id: 16, name: "บัวลอย", price: 40, image: "src/menus/บัวลอย.jpg", category: "เครื่องดื่ม" },
-  { id: 17, name: "น้ำส้มคั้น", price: 60, image: "src/menus/น้ำส้มคั้น.jpg", category: "เครื่องดื่ม" },
-  { id: 18, name: "น้ำมะพร้าว", price: 70, image: "src/menus/น้ำมะพร้าว.jpg", category: "เครื่องดื่ม" },
-  { id: 19, name: "น้ำกระเจี๊ยบ", price: 120, image: "src/menus/น้ำกระเจี๊ยบ.jpg", category: "เครื่องดื่ม" },
-  { id: 20, name: "ข้าวมันไก่", price: 40, image: "src/menus/ข้าวมันไก่.jpg", category: "อาหารจานเดียว" },
-  { id: 21, name: "ต้มข่าไก่", price: 60, image: "src/menus/ต้มข่าไก่.jpg", category: "ซุป" },
-  { id: 22, name: "แกงจืดเต้าหู้หมูสับ", price: 70, image: "src/menus/แกงจืดเต้าหู้หมูสับ.jpg", category: "ซุป" },
-  { id: 23, name: "แกงป่า", price: 120, image: "src/menus/แกงป่า.jpg", category: "ซุป" },
-  { id: 24, name: "ส้มตำ", price: 40, image: "src/menus/ส้มตำ.jpg", category: "อาหารจานเดียว" },
-  { id: 25, name: "น้ำแตงโมปั่น", price: 60, image: "src/menus/น้ำแตงโมปั่น.jpg", category: "เครื่องดื่ม" },
-  { id: 26, name: "น้ำแครอท", price: 70, image: "src/menus/น้ำแครอท.jpg", category: "เครื่องดื่ม" },
-  { id: 27, name: "น้ำเสาวรส", price: 120, image: "src/menus/น้ำเสาวรส.jpg", category: "เครื่องดื่ม" },
-  { id: 28, name: "ลอดช่อง", price: 40, image: "src/menus/ลอดช่อง.jpg", category: "เครื่องดื่ม" },
-  { id: 29, name: "ไอศครีมกะทิ", price: 60, image: "src/menus/ไอศครีมกะทิ.jpg", category: "เครื่องดื่ม" },
-  { id: 30, name: "เฉาก๊วย", price: 70, image: "src/menus/เฉาก๊วย.jpg", category: "เครื่องดื่ม" },
-  { id: 31, name: "ชานมเย็น", price: 120, image: "src/menus/ชานมเย็น.jpg", category: "เครื่องดื่ม" },
-  { id: 32, name: "กาแฟเย็น", price: 40, image: "src/menus/กาแฟเย็น.jpg", category: "เครื่องดื่ม" },
-  { id: 33, name: "โอเลี้ยง", price: 60, image: "src/menus/โอเลี้ยง.jpg", category: "เครื่องดื่ม" },
-  { id: 34, name: "ชาดำเย็น", price: 70, image: "src/menus/ชาดำเย็น.jpg", category: "เครื่องดื่ม" },
-  { id: 35, name: "ข้าวผัดกุ้ง", price: 120, image: "src/menus/ข้าวผัดกุ้ง.jpg", category: "อาหารจานเดียว" },
-  { id: 36, name: "ข้าวผัดปู", price: 40, image: "src/menus/ข้าวผัดปู.jpg", category: "อาหารจานเดียว" },
-  { id: 37, name: "ก๋วยเตี๋ยวเรือ", price: 60, image: "src/menus/ก๋วยเตี๋ยวเรือ.jpg", category: "เส้น" },
-  { id: 38, name: "ราดหน้าหมู", price: 70, image: "src/menus/ราดหน้าหมู.jpg", category: "เส้น" },
-  { id: 39, name: "เย็นตาโฟ", price: 120, image: "src/menus/เย็นตาโฟ.jpg", category: "เส้น" },
-  { id: 40, name: "ผัดซีอิ๊ว", price: 40, image: "src/menus/ผัดซีอิ๊ว.jpg", category: "เส้น" },
-  { id: 41, name: "ข้าวต้มหมู", price: 60, image: "src/menus/ข้าวต้มหมู.jpg", category: "อาหารจานเดียว" },
-  { id: 42, name: "ข้าวหมูกรอบ", price: 70, image: "src/menus/ข้าวหมูกรอบ.jpg", category: "อาหารจานเดียว" },
-  { id: 43, name: "ข้าวหมูแดง", price: 120, image: "src/menus/ข้าวหมูแดง.jpg", category: "อาหารจานเดียว" },
-  { id: 44, name: "โจ๊กหมู", price: 40, image: "src/menus/โจ๊กหมู.jpg", category: "อาหารจานเดียว" },
-  { id: 45, name: "เกาเหลาหมู", price: 60, image: "src/menus/เกาเหลาหมู.jpg", category: "ซุป" },
-  { id: 46, name: "ข้าวขาหมู", price: 70, image: "src/menus/ข้าวขาหมู.jpg", category: "อาหารจานเดียว" },
-  { id: 47, name: "สุกี้แห้ง", price: 120, image: "src/menus/สุกี้แห้ง.jpg", category: "เส้น" },
-  { id: 48, name: "สุกี้น้ำ", price: 40, image: "src/menus/สุกี้น้ำ.jpg", category: "เส้น" },
-  { id: 49, name: "ผัดกะเพรา", price: 60, image: "src/menus/ผัดกะเพรา.jpg", category: "อาหารจานเดียว" },
-  { id: 50, name: "ผัดผงกะหรี่", price: 70, image: "src/menus/ผัดผงกะหรี่.jpg", category: "อาหารจานเดียว" },
-  { id: 51, name: "แกงเขียวหวาน", price: 120, image: "src/menus/แกงเขียวหวาน.jpg", category: "ซุป" },
-  { id: 52, name: "มัสมั่นไก่", price: 40, image: "src/menus/มัสมั่นไก่.jpg", category: "ซุป" },
-  { id: 53, name: "แกงเผ็ดเป็ดย่าง", price: 60, image: "src/menus/แกงเผ็ดเป็ดย่าง.jpg", category: "ซุป" },
-  { id: 54, name: "ข้าวเหนียวมะม่วง", price: 70, image: "src/menus/ข้าวเหนียวมะม่วง.jpg", category: "เครื่องดื่ม" },
-  { id: 55, name: "ทับทิมกรอบ", price: 120, image: "src/menus/ทับทิมกรอบ.jpg", category: "เครื่องดื่ม" },
-  { id: 56, name: "กล้วยบวชชี", price: 40, image: "src/menus/กล้วยบวชชี.jpg", category: "เครื่องดื่ม" },
-  { id: 57, name: "ลอดช่องสิงคโปร์", price: 60, image: "src/menus/ลอดช่องสิงคโปร์.jpg", category: "เครื่องดื่ม" },
-  { id: 58, name: "แตงไทยน้ำกะทิ", price: 70, image: "src/menus/แตงไทยน้ำกะทิ.jpg", category: "เครื่องดื่ม" },
-  { id: 59, name: "น้ำใบเตย", price: 120, image: "src/menus/น้ำใบเตย.jpg", category: "เครื่องดื่ม" },
-  { id: 60, name: "น้ำเก๊กฮวย", price: 40, image: "src/menus/น้ำเก๊กฮวย.jpg", category: "เครื่องดื่ม" },
-];
-
-
-
-interface CartItem {
+// Define the types for data fetched from the backend
+interface MenuItem {
   id: number;
+  restaurant_id: number;
   name: string;
-  price: number;
-  quantity: number;
-  notes?: string;
+  description: string;
+  base_price: string; // Use string to handle Decimal type from Python
+  category: string;
+  image_url: string;
+  is_available: boolean;
 }
 
+interface CartItem {
+  menu_id: number;
+  name: string;
+  quantity: number;
+  price_at_order: number;
+  notes: string;
+}
+
+// Define the categories. "All" is a custom one for the frontend UI.
+const categories = ["ทั้งหมด", "อาหารจานเดียว", "เส้น", "ซุป", "เครื่องดื่ม", "ของหวาน", "ตะกร้า"];
+
 export default function OrderFoodPage() {
-  const [category, setCategory] = useState<string>(MENU_CATEGORIES[0]);
-  const [page, setPage] = useState(0);
+  const { table_number } = useParams<{ table_number: string }>();
+  const navigate = useNavigate();
+
+  const [menus, setMenus] = useState<MenuItem[]>([]);
+  const [filteredMenus, setFilteredMenus] = useState<MenuItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [discountCode, setDiscountCode] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // NEW: State to hold quantity and notes for each item input
+  const [inputStates, setInputStates] = useState<Record<number, { quantity: number; notes: string }>>({});
 
-  const itemsPerPage = 16;
-  const filteredItems = MENU_ITEMS.filter((item) => item.category === category);
-  const pageItems = filteredItems.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
-
-  const addToCart = (item: typeof MENU_ITEMS[0]) => {
-    setCart((prev) => {
-      const exist = prev.find((c) => c.id === item.id);
-      if (exist) {
-        return prev.map((c) =>
-          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
-        );
-      } else {
-        return [...prev, { id: item.id, name: item.name, price: item.price, quantity: 1 }];
-      }
-    });
+  // Function to fetch menu data from the backend
+  const fetchMenus = async () => {
+    try {
+      const response = await axios.get("http://localhost:5000/api/menus");
+      const menuData: MenuItem[] = response.data;
+      setMenus(menuData);
+      setFilteredMenus(menuData);
+      // Initialize input states
+      const initialInputStates: Record<number, { quantity: number; notes: string }> = {};
+      menuData.forEach(menu => {
+        initialInputStates[menu.id] = { quantity: 1, notes: '' };
+      });
+      setInputStates(initialInputStates);
+    } catch (err) {
+      setError("Failed to fetch menus. Please check the backend connection.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const removeFromCart = (id: number) => {
-    setCart((prev) => prev.filter((c) => c.id !== id));
+  useEffect(() => {
+    fetchMenus();
+  }, []);
+
+  // Filter menus whenever the selected category changes
+  useEffect(() => {
+    if (selectedCategory === "ทั้งหมด") {
+      setFilteredMenus(menus);
+    } else {
+      setFilteredMenus(menus.filter(menu => menu.category === selectedCategory));
+    }
+  }, [selectedCategory, menus]);
+
+  // Function to add or update an item in the cart
+  const addToCart = (menuItem: MenuItem, quantity: number, notes: string) => {
+    const existingItem = cart.find(item => item.menu_id === menuItem.id);
+    if (existingItem) {
+      setCart(
+        cart.map(item =>
+          item.menu_id === menuItem.id
+            ? { ...item, quantity: item.quantity + quantity, notes: notes }
+            : item
+        )
+      );
+    } else {
+      setCart([
+        ...cart,
+        {
+          menu_id: menuItem.id,
+          name: menuItem.name,
+          quantity: quantity,
+          price_at_order: parseFloat(menuItem.base_price),
+          notes: notes,
+        },
+      ]);
+    }
   };
 
-  const updateItemNotes = (index: number, notes: string) => {
-    setCart((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, notes } : c))
-    );
+  // Function to remove an item from the cart
+  const removeFromCart = (menuId: number) => {
+    setCart(cart.filter(item => item.menu_id !== menuId));
+  };
+  
+  // Calculate the total amount of the order
+  const totalAmount = cart.reduce((sum, item) => {
+    return sum + item.quantity * item.price_at_order;
+  }, 0);
+
+  // Function to handle the checkout process
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      alert("กรุณาเลือกเมนูอาหารก่อนชำระเงิน");
+      return;
+    }
+
+    try {
+      const orderData = {
+        restaurant_id: 1, // Assuming a fixed restaurant_id for now
+        table_number: parseInt(table_number as string),
+        total_amount: totalAmount,
+        status: "pending",
+        payment_status: "unpaid",
+        items: cart.map(item => ({
+          menu_id: item.menu_id,
+          quantity: item.quantity,
+          price_at_order: item.price_at_order,
+          notes: item.notes,
+        })),
+      };
+
+      const response = await axios.post("http://localhost:5000/api/orders", orderData);
+      console.log("Order created successfully:", response.data);
+      alert("ออเดอร์ถูกสร้างแล้ว");
+
+      // Navigate to the payment page with the new order ID
+      navigate(`/payment/${response.data.order_id}`);
+    } catch (err) {
+      alert("Failed to create order. Please try again.");
+      console.error("Order creation failed:", err);
+    }
   };
 
-  const total = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
+  // UI rendering logic
+  if (loading) {
+    return <div className="p-4 text-center">Loading menus...</div>;
+  }
 
+  if (error) {
+    return <div className="p-4 text-center text-red-500">{error}</div>;
+  }
+  
   return (
-    <div className="flex min-h-screen p-6 gap-6 bg-gray-100">
-      {/* ฝั่งซ้าย: เมนูอาหาร */}
-      <div className="w-2/3 bg-white rounded-2xl shadow-lg p-6 flex flex-col">
-        {/* เลือกประเภท */}
-        <div className="flex gap-3 mb-6">
-          {MENU_CATEGORIES.map((cat) => (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-6">Order for Table #{table_number}</h1>
+        
+        {/* Category Filter Buttons */}
+        <div className="flex justify-center gap-4 mb-8 overflow-x-auto pb-2">
+          {categories.map(category => (
             <button
-              key={cat}
-              className={`px-5 py-2 rounded-xl text-sm font-medium transition ${
-                cat === category
-                  ? "bg-sky-500 text-white shadow-md"
-                  : "bg-gray-200 hover:bg-gray-300"
-              }`}
-              onClick={() => {
-                setCategory(cat);
-                setPage(0);
-              }}
+              key={category}
+              className={`btn ${selectedCategory === category ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setSelectedCategory(category)}
             >
-              {cat}
+              {category}
             </button>
           ))}
         </div>
-
-        {/* รายการอาหาร */}
-        <div className="grid grid-cols-4 gap-5 flex-1 overflow-auto">
-          {pageItems.map((item) => (
-            <div
-              key={item.id}
-              className="bg-white border rounded-xl p-3 flex flex-col items-center shadow-sm hover:shadow-md transition"
-            >
-              <img
-                src={item.image}
-                alt={item.name}
-                className="w-24 h-24 object-cover rounded-lg mb-3"
-              />
-              <span className="text-sm font-semibold text-gray-800">{item.name}</span>
-              <span className="text-sm text-gray-500 mb-3">{item.price} บาท</span>
-              <button
-                className="bg-sky-500 text-white px-4 py-1.5 rounded-lg hover:bg-sky-600 transition shadow-sm"
-                onClick={() => addToCart(item)}
-              >
-                เพิ่ม
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Pagination */}
-        <div className="flex justify-center mt-6 gap-2">
-          {Array.from({ length: Math.ceil(filteredItems.length / itemsPerPage) }).map((_, i) => (
-            <button
-              key={i}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                i === page ? "bg-sky-500 text-white shadow" : "bg-gray-200 hover:bg-gray-300"
-              }`}
-              onClick={() => setPage(i)}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ฝั่งขวา: ตะกร้าสินค้า */}
-      <div className="w-1/3 bg-white rounded-2xl shadow-lg p-6 flex flex-col">
-        <h2 className="text-center text-xl font-bold mb-4 text-gray-700">🛒 ตะกร้าสินค้า</h2>
-        <div className="flex-1 overflow-auto space-y-4">
-          {cart.length === 0 && <p className="text-gray-500 text-center">ยังไม่มีสินค้า</p>}
-          {cart.map((item, idx) => (
-            <div key={item.id} className="flex flex-col border rounded-xl p-3 shadow-sm bg-gray-50">
-              {/* ชื่อสินค้า */}
-              <span className="w-full text-center font-semibold text-sm text-gray-700 mb-2">
-                {item.name}
-              </span>
-
-              <div className="flex items-start gap-3">
-                {/* จำนวนสินค้า */}
-                <span className="w-12 text-center font-semibold bg-white rounded-lg border px-2 py-1 shadow-sm">
-                  {item.quantity}
-                </span>
-
-                {/* กล่องกรอกรายละเอียด */}
-                <textarea
-                  placeholder="กรอกรายละเอียดเพิ่มเติม"
-                  className="flex-1 border rounded-lg p-2 text-sm resize-none focus:ring-2 focus:ring-sky-400"
-                  value={item.notes || ""}
-                  onChange={(e) => updateItemNotes(idx, e.target.value)}
-                />
-
-                {/* ราคากับปุ่มลบ */}
-                <div className="flex flex-col items-end ml-2">
-                  <span className="text-sm font-semibold text-gray-700">{item.price} บาท</span>
-                  <button
-                    className="text-red-500 text-sm font-bold hover:underline mt-1"
-                    onClick={() => removeFromCart(item.id)}
-                  >
-                    ลบ
-                  </button>
+        
+        {/* Menu Items Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMenus.map(menu => (
+            <div key={menu.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+              <img src={menu.image_url || 'https://via.placeholder.com/400x300'} alt={menu.name} className="w-full h-48 object-cover" />
+              <div className="p-4 flex-grow">
+                <h3 className="text-xl font-semibold">{menu.name}</h3>
+                <p className="text-gray-600 mt-1">{menu.description}</p>
+                <div className="flex justify-between items-center mt-3">
+                  <span className="text-lg font-bold text-gray-800">฿{parseFloat(menu.base_price).toFixed(2)}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={inputStates[menu.id]?.quantity || 1} // Use state value
+                      min="1"
+                      className="w-16 px-2 py-1 border rounded"
+                      onChange={(e) => {
+                          const newQuantity = parseInt(e.target.value) || 1;
+                          setInputStates(prev => ({
+                              ...prev,
+                              [menu.id]: { ...prev[menu.id], quantity: newQuantity }
+                          }));
+                      }}
+                    />
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                            const { quantity, notes } = inputStates[menu.id] || { quantity: 1, notes: '' };
+                            addToCart(menu, quantity, notes);
+                        }}
+                    >
+                        Add
+                    </button>
+                  </div>
                 </div>
+                <input
+                    type="text"
+                    value={inputStates[menu.id]?.notes || ''} // Use state value
+                    placeholder="e.g., ไม่เผ็ด"
+                    className="notes-input w-full mt-2 p-2 border rounded text-sm"
+                    onChange={(e) => {
+                        const newNotes = e.target.value;
+                        setInputStates(prev => ({
+                            ...prev,
+                            [menu.id]: { ...prev[menu.id], notes: newNotes }
+                        }));
+                    }}
+                />
               </div>
             </div>
           ))}
         </div>
 
-        {/* โค้ดส่วนลด และยอดรวม */}
-        <div className="mt-6 border-t pt-4">
-          <input
-            type="text"
-            placeholder="ใส่โค้ดส่วนลด"
-            className="w-full border rounded-lg p-2 mb-3 text-sm focus:ring-2 focus:ring-sky-400"
-            value={discountCode}
-            onChange={(e) => setDiscountCode(e.target.value)}
-          />
-          <div className="flex justify-between font-bold text-gray-700 mb-3">
-            <span>รวมทั้งหมด:</span>
-            <span>{total} บาท</span>
-          </div>
-          <button className="w-full bg-sky-500 text-white py-2.5 rounded-xl font-semibold shadow hover:bg-sky-600 transition">
-            สั่งซื้อ
-          </button>
+        {/* Shopping Cart Section */}
+        <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-2xl font-bold mb-4">ตะกร้าสินค้า</h2>
+          {cart.length === 0 ? (
+            <p className="text-gray-500">ตะกร้าว่างเปล่า</p>
+          ) : (
+            <div>
+              <ul className="divide-y divide-gray-200">
+                {cart.map((item, index) => (
+                  <li key={index} className="py-4 flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold">{item.name}</h4>
+                      <p className="text-sm text-gray-500">จำนวน: {item.quantity}</p>
+                      {item.notes && <p className="text-sm text-gray-500">หมายเหตุ: {item.notes}</p>}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="font-semibold">฿{(item.quantity * item.price_at_order).toFixed(2)}</span>
+                      <button onClick={() => removeFromCart(item.menu_id)} className="btn btn-error btn-sm">
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex justify-between items-center border-t pt-4">
+                <span className="text-xl font-bold">ยอดรวม: ฿{totalAmount.toFixed(2)}</span>
+                <button 
+                  onClick={handleCheckout} 
+                  className="btn btn-success text-white font-semibold"
+                >
+                  ชำระเงิน
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import sys
 import os
 import mysql.connector
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 from datetime import datetime
@@ -18,10 +18,9 @@ app = Flask(__name__)
 # Configure CORS (Cross-Origin Resource Sharing) for the Flask app.
 # Allows frontend from http://localhost:3000 to access these API endpoints.
 CORS(app, resources={r"/api/*": {"origins": [
-    "http://localhost:3000"
+    "http://localhost:5173"
 ]}})
 
-# --- Database Connection Function ---
 def get_db_connection():
     """
     Establishes and returns a new database connection using mysql.connector.
@@ -32,15 +31,17 @@ def get_db_connection():
         conn = mysql.connector.connect(
             host=os.getenv("DB_HOST", "localhost"),
             user=os.getenv("DB_USER", "root"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=os.getenv("DB_PASSWORD", "12345678"),
             database=os.getenv("DB_NAME", "food_shopdb"),
             port=int(os.getenv("DB_PORT", 3306)),
-            charset='utf8mb4' # Ensure proper handling of Thai characters
+            charset='utf8mb4'
         )
         return conn
     except mysql.connector.Error as err:
         print(f"Database connection error: {err}")
-        raise # Re-raise the exception to be handled by the calling function
+        # To help with debugging, you can also print the variables being used
+        # print(f"Host: {os.getenv('DB_HOST')}, User: {os.getenv('DB_USER')}, DB: {os.getenv('DB_NAME')}")
+        raise
 
 # --- API Endpoint: Get All Menus (with optional restaurant_id and category filters) ---
 @app.route('/api/menus', methods=['GET'])
@@ -810,6 +811,8 @@ def test_api():
     """
     return jsonify({"message": "API is working!", "data": "Hello from Flask backend!"}), 200
 
+
+
 # --- Main Entry Point for Running the Flask App ---
 if __name__ == '__main__':
     # When running this script directly (e.g., `python app.py`),
@@ -819,4 +822,4 @@ if __name__ == '__main__':
     # `port=5000` sets the listening port for the Flask application.
     # `host='0.0.0.0'` makes the server accessible from any IP address,
     # including your frontend running on localhost.
-    app.run(debug=True, port=5000, host='00.0') # Changed host to '0.0.0.0' for broader access within Docker or network
+    app.run(debug=True, port=5000, host='0.0.0.0') 
