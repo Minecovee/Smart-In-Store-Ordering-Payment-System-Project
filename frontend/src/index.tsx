@@ -1,6 +1,6 @@
-import React from 'react';
+/*import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App'; // Import from App.tsx (no .tsx needed in import path)
+import App from './AdminApp'; // Import from App.tsx (no .tsx needed in import path)
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -10,4 +10,4 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
+*/
