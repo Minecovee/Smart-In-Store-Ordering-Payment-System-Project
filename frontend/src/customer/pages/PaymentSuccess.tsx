@@ -1,6 +1,8 @@
 import React from 'react';
 import { Button, Typography, Box, Container } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
+import Sidebar from '../components/Sidebar';
 
 const PaymentSuccess: React.FC = () => {
     const navigate = useNavigate();
@@ -10,6 +12,18 @@ const PaymentSuccess: React.FC = () => {
     };
 
     return (
+        <div className="min-h-screen flex flex-col">
+                  {/* Header */}
+                  <Header />
+            
+                  <div className="flex flex-1 ">
+                    {/* Sidebar */}
+                    <Sidebar />
+            
+                    {/* Main Content */}
+          <main className="flex-1 p-4 bg-black">
+
+
         <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
             <Box>
                 <img 
@@ -34,6 +48,10 @@ const PaymentSuccess: React.FC = () => {
                 </Button>
             </Box>
         </Container>
+        
+        </main>
+        </div>
+        </div>
     );
 };
 

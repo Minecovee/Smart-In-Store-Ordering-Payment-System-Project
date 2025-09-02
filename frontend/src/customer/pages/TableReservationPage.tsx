@@ -19,30 +19,11 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 max-w-[820px] mx-auto">
       {/* Top bar */}
       <div className="relative w-full rounded-2xl border border-sky-200 bg-sky-50 px-6 py-4 shadow-sm">
         <div className="absolute top-4 right-4">
           <div className="flex gap-2 p-4">
-
-            
-      {/* Primary */}
-      <button className="btn btn-primary">Primary</button>
-
-      {/* Secondary */}
-      <button className="btn btn-secondary">Secondary</button>
-
-      {/* Accent */}
-      <button className="btn btn-accent">Accent</button>
-
-      {/* Success */}
-      <button className="btn btn-success">Success</button>
-
-      {/* Warning */}
-      <button className="btn btn-warning">Warning</button>
-
-      {/* Error */}
-      <button className="btn btn-error">Error</button>
     </div>
 
 
@@ -66,7 +47,7 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
         ))}
       </div>
 
-      <div className="mt-6 flex justify-center">
+      <div className="">
         <button
           onClick={confirmBooking}
           className="fixed bottom-4 right-4 btn btn-success shadow-md transition"
