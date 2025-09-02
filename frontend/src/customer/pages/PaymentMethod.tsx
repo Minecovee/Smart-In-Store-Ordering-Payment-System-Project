@@ -1,157 +1,80 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import { formatDateTime } from "../../utils/formatDateTime";
+import TableCard from "../components/TableCard";
+import { useEffect, useMemo, useState } from "react";
+import { useTableController } from "../controllers/TableControllers";
 
-// Interface for the fetched order details
-interface Order {
-  id: number;
-  // Change total_amount to string to match the Python backend's response
-  total_amount: string;
-  payment_status: string;
+interface Props {
+  userType?: string;
 }
 
-export default function PaymentMethod() {
-  const { order_id } = useParams<{ order_id: string }>();
-  const navigate = useNavigate();
+export default function TableReservationPage({ userType = "ลูกค้า" }: Props) {
+  const [now, setNow] = useState(new Date());
+  const { tables, toggleTable, confirmBooking } = useTableController(20);
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "qr" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(null);
-
-  // Fetches order details from the backend using the order_id from the URL
-  const fetchOrder = async () => {
-    try {
-      const response = await axios.get(`http://localhost:5000/api/orders/${order_id}`);
-      setOrder(response.data);
-    } catch (err: any) {
-      setError("Failed to fetch order details. Please check the backend connection and order ID.");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handles the cash payment process
-  const handleCashPayment = async () => {
-    if (!order) return;
-    try {
-      // Sends a request to the backend to update the order's payment status
-      await axios.put(`http://localhost:5000/api/orders/${order.id}`, {
-        payment_status: "paid"
-      });
-      setMessage("รับชำระด้วยเงินสดเรียบร้อยแล้ว! พนักงานกำลังดำเนินการ");
-      setTimeout(() => navigate("/"), 3000); // Redirect to home after 3 seconds
-    } catch (err) {
-      setMessage("Failed to confirm cash payment. Please try again.");
-    }
-  };
+  const timeLabel = useMemo(() => formatDateTime(now), [now]);
 
   useEffect(() => {
-    if (order_id) {
-      fetchOrder();
-    }
-  }, [order_id]);
-
-  // Generate QR Code URL from PromptPay.io when order data is available
-  useEffect(() => {
-    if (order) {
-        // NOTE: In a real application, you should get your PromptPay ID from a secure source.
-        const promptPayId = "0909634366"; // Replace with your PromptPay ID (Phone number or National ID)
-        const totalAmountNumber = parseFloat(order.total_amount);
-        const url = `https://promptpay.io/${promptPayId}/${totalAmountNumber.toFixed(2)}.png`;
-        setGeneratedQrCodeUrl(url);
-    }
-  }, [order]);
-
-  // Loading and error states
-  if (loading) {
-    return <div className="p-4 text-center text-gray-700">กำลังโหลดรายละเอียดออเดอร์...</div>;
-  }
-  if (error || !order) {
-    return <div className="p-4 text-center text-red-500 font-bold">{error || "ไม่พบออเดอร์"}</div>;
-  }
-  
-  // Parse the total amount string to a number for calculations and formatting
-  const totalAmountNumber = parseFloat(order.total_amount);
+    const tick = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-center mb-6 text-indigo-700">Payment</h1>
-        <h2 className="text-2xl font-semibold text-center mb-4 text-gray-800">ยอดชำระ: ฿{totalAmountNumber.toFixed(2)}</h2>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      {/* Top bar */}
+      <div className="relative w-full rounded-2xl border border-sky-200 bg-sky-50 px-6 py-4 shadow-sm">
+        <div className="absolute top-4 right-4">
+          <div className="flex gap-2 p-4">
 
-        {message && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl text-center">
-              <h3 className="text-xl font-semibold mb-4 text-gray-800">ชำระเงินเรียบร้อยแล้ว</h3>
-              <p className="text-gray-600 mb-4">{message}</p>
-              <button 
-                className="btn btn-primary"
-                onClick={() => setMessage(null)} // Close the popup
-              >
-                ปิด
-              </button>
-            </div>
+            
+      {/* Primary */}
+      <button className="btn btn-primary">Primary</button>
+
+      {/* Secondary */}
+      <button className="btn btn-secondary">Secondary</button>
+
+      {/* Accent */}
+      <button className="btn btn-accent">Accent</button>
+
+      {/* Success */}
+      <button className="btn btn-success">Success</button>
+
+      {/* Warning */}
+      <button className="btn btn-warning">Warning</button>
+
+      {/* Error */}
+      <button className="btn btn-error">Error</button>
+    </div>
+
+
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+            <span className="text-sm text-slate-500">ประเภทผู้ใช้</span>
+            <span className="rounded-xl bg-slate-100 px-2 py-1 text-sm font-semibold text-slate-700">
+              {userType}
+            </span>
           </div>
-        )}
-
-        <div className="flex justify-center gap-4 mb-6">
-          <button 
-            className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setPaymentMethod('cash')}
-          >
-            เงินสด
-          </button>
-          <button 
-            className={`btn ${paymentMethod === 'qr' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setPaymentMethod('qr')}
-          >
-            QR-Code (PromptPay)
-          </button>
         </div>
+        <h1 className="text-3xl md:text-4xl font-bold text-slate-800">ร้านนายสมชาย</h1>
+        <div className="mt-2 text-sm text-slate-700">
+          เวลา: <span className="font-medium">{timeLabel}</span>
+        </div>
+      </div>
 
-        {paymentMethod === 'cash' && (
-          <div className="text-center p-6 bg-gray-50 rounded-md transition-opacity duration-300">
-            <h3 className="text-xl font-medium mb-4 text-gray-700">การชำระด้วยเงินสด</h3>
-            <p className="text-gray-600 mb-4">โปรดรอพนักงานเพื่อชำระเงิน</p>
-            <button 
-              className="btn btn-success text-white"
-              onClick={handleCashPayment}
-            >
-              ยืนยันการชำระด้วยเงินสด
-            </button>
-          </div>
-        )}
+      {/* ตารางโต๊ะ */}
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        {tables.map((table) => (
+          <TableCard key={table.id} table={table} onToggle={toggleTable} />
+        ))}
+      </div>
 
-        {paymentMethod === 'qr' && (
-          <div className="text-center p-6 bg-gray-50 rounded-md transition-opacity duration-300">
-            <h3 className="text-xl font-medium mb-4 text-gray-700">สแกนเพื่อชำระเงิน</h3>
-            <div className="bg-white p-4 rounded-md shadow-inner inline-block">
-              {generatedQrCodeUrl && (
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold mb-2 text-gray-800">QR Code PromptPay สำหรับ Order ID: {order.id}</h3>
-                  <p className="text-sm text-gray-600 mb-2">ยอดเงิน: {totalAmountNumber.toFixed(2)} บาท</p>
-                  <div className="inline-block p-2 border border-gray-300 rounded-lg bg-white shadow">
-                    <img src={generatedQrCodeUrl} alt="PromptPay QR Code" style={{ maxWidth: '250px', height: 'auto' }} />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    (QR Code นี้ถูกสร้างโดยใช้เบอร์โทรศัพท์จำลอง: 0812345678)
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {!paymentMethod && (
-          <div className="text-center p-6 bg-gray-50 rounded-md">
-            <p className="text-gray-600">กรุณาเลือกวิธีการชำระเงิน</p>
-          </div>
-        )}
+      <div className="mt-6 flex justify-center">
+        <button
+          onClick={confirmBooking}
+          className="fixed bottom-4 right-4 btn btn-success shadow-md transition"
+        >
+          ยืนยันการจอง
+        </button>
       </div>
     </div>
   );
 }
+

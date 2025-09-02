@@ -2,7 +2,9 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import TableReservationPage from "./pages/TableReservationPage";
 import OrderFoodPage from "./pages/OrderFoodPage";
 import AdminApp from "../admin/AdminApp";
-import PaymentMethod from "./pages/PaymentMethod"; // นำเข้าคอมโพเนนต์ PaymentMethod
+import PaymentMethod from "./pages/PaymentMethod";
+import PaymentSuccess from "./pages/PaymentSuccess";
+
 
 export default function App() {
   return (
@@ -10,8 +12,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<TableReservationPage />} />
         <Route path="/admin" element={<AdminApp />} />
-        <Route path="/order/:table_number" element={<OrderFoodPage />} />
-        <Route path="/payment/:order_id" element={<PaymentMethod />} />
+        <Route path="/order-food" element={<OrderFoodPage />} />
+        <Route path="/payment-method" element={<PaymentMethod />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
       </Routes>
     </Router>
   );
