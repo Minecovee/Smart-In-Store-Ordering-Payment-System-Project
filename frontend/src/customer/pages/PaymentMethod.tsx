@@ -1,51 +1,69 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 
-// Interface for the fetched order details
 interface Order {
   id: number;
-  // Change total_amount to string to match the Python backend's response
   total_amount: string;
   payment_status: string;
 }
 
-export default function PaymentMethod() {
+export default function PaymentPage() {
   const { order_id } = useParams<{ order_id: string }>();
   const navigate = useNavigate();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "qr" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(null);
+  const [method, setMethod] = useState<"qrcode" | "cash" | null>(null);
+  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(
+    null
+  );
+  const [showQrPopup, setShowQrPopup] = useState(false);
 
-  // Fetches order details from the backend using the order_id from the URL
+  // ดึงข้อมูล order
   const fetchOrder = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/orders/${order_id}`);
+      const response = await axios.get(
+        `http://localhost:5000/api/orders/${order_id}`
+      );
       setOrder(response.data);
     } catch (err: any) {
-      setError("Failed to fetch order details. Please check the backend connection and order ID.");
+      setError("ไม่สามารถดึงข้อมูลออเดอร์ได้");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handles the cash payment process
+  // อัปเดตเป็น "paid" ถ้าชำระด้วยเงินสด
   const handleCashPayment = async () => {
     if (!order) return;
     try {
-      // Sends a request to the backend to update the order's payment status
       await axios.put(`http://localhost:5000/api/orders/${order.id}`, {
-        payment_status: "paid"
+        payment_status: "paid",
       });
-      setMessage("รับชำระด้วยเงินสดเรียบร้อยแล้ว! พนักงานกำลังดำเนินการ");
-      setTimeout(() => navigate("/"), 3000); // Redirect to home after 3 seconds
+      navigate("/payment-success");
     } catch (err) {
-      setMessage("Failed to confirm cash payment. Please try again.");
+      console.error(err);
+      alert("ชำระเงินสดไม่สำเร็จ กรุณาลองใหม่");
+    }
+  };
+
+  // กดปุ่มชำระเงิน
+  const confirmPayment = () => {
+    if (!order || !method) return;
+    if (method === "cash") {
+      handleCashPayment();
+    } else if (method === "qrcode") {
+      // สร้าง QR แล้วเปิด popup
+      const promptPayId = "0909634366"; // TODO: env
+      const totalAmountNumber = parseFloat(order.total_amount);
+      const url = `https://promptpay.io/${promptPayId}/${totalAmountNumber.toFixed(
+        2
+      )}.png`;
+      setGeneratedQrCodeUrl(url);
+      setShowQrPopup(true);
     }
   };
 
@@ -55,103 +73,145 @@ export default function PaymentMethod() {
     }
   }, [order_id]);
 
-  // Generate QR Code URL from PromptPay.io when order data is available
-  useEffect(() => {
-    if (order) {
-        // NOTE: In a real application, you should get your PromptPay ID from a secure source.
-        const promptPayId = "0909634366"; // Replace with your PromptPay ID (Phone number or National ID)
-        const totalAmountNumber = parseFloat(order.total_amount);
-        const url = `https://promptpay.io/${promptPayId}/${totalAmountNumber.toFixed(2)}.png`;
-        setGeneratedQrCodeUrl(url);
-    }
-  }, [order]);
-
-  // Loading and error states
   if (loading) {
-    return <div className="p-4 text-center text-gray-700">กำลังโหลดรายละเอียดออเดอร์...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        กำลังโหลด...
+      </div>
+    );
   }
   if (error || !order) {
-    return <div className="p-4 text-center text-red-500 font-bold">{error || "ไม่พบออเดอร์"}</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen text-red-500">
+        {error || "ไม่พบออเดอร์"}
+      </div>
+    );
   }
-  
-  // Parse the total amount string to a number for calculations and formatting
+
   const totalAmountNumber = parseFloat(order.total_amount);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-center mb-6 text-indigo-700">Payment</h1>
-        <h2 className="text-2xl font-semibold text-center mb-4 text-gray-800">ยอดชำระ: ฿{totalAmountNumber.toFixed(2)}</h2>
+    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
+      <div className="bg-white shadow-xl rounded-2xl p-6 w-[820px]">
+        <h2 className="text-2xl font-bold text-start mb-6">
+          เลือกช่องทางการชำระเงิน
+        </h2>
 
-        {message && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl text-center">
-              <h3 className="text-xl font-semibold mb-4 text-gray-800">ชำระเงินเรียบร้อยแล้ว</h3>
-              <p className="text-gray-600 mb-4">{message}</p>
-              <button 
-                className="btn btn-primary"
-                onClick={() => setMessage(null)} // Close the popup
-              >
-                ปิด
-              </button>
-            </div>
-          </div>
-        )}
+        <p className="text-lg font-semibold mb-6">
+          ยอดชำระ: ฿{totalAmountNumber.toFixed(2)}
+        </p>
 
-        <div className="flex justify-center gap-4 mb-6">
-          <button 
-            className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setPaymentMethod('cash')}
+        {/* ตัวเลือกช่องทาง */}
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          {/* QR Code */}
+          <div
+            className={`flex items-center p-6 border-2 rounded-xl cursor-pointer transition 
+              ${
+                method === "qrcode"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-300 hover:border-green-300"
+              }`}
+            onClick={() => setMethod("qrcode")}
           >
-            เงินสด
-          </button>
-          <button 
-            className={`btn ${paymentMethod === 'qr' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setPaymentMethod('qr')}
-          >
-            QR-Code (PromptPay)
-          </button>
-        </div>
-
-        {paymentMethod === 'cash' && (
-          <div className="text-center p-6 bg-gray-50 rounded-md transition-opacity duration-300">
-            <h3 className="text-xl font-medium mb-4 text-gray-700">การชำระด้วยเงินสด</h3>
-            <p className="text-gray-600 mb-4">โปรดรอพนักงานเพื่อชำระเงิน</p>
-            <button 
-              className="btn btn-success text-white"
-              onClick={handleCashPayment}
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4
+                ${
+                  method === "qrcode"
+                    ? "border-green-500"
+                    : "border-gray-400"
+                }`}
             >
-              ยืนยันการชำระด้วยเงินสด
-            </button>
-          </div>
-        )}
-
-        {paymentMethod === 'qr' && (
-          <div className="text-center p-6 bg-gray-50 rounded-md transition-opacity duration-300">
-            <h3 className="text-xl font-medium mb-4 text-gray-700">สแกนเพื่อชำระเงิน</h3>
-            <div className="bg-white p-4 rounded-md shadow-inner inline-block">
-              {generatedQrCodeUrl && (
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold mb-2 text-gray-800">QR Code PromptPay สำหรับ Order ID: {order.id}</h3>
-                  <p className="text-sm text-gray-600 mb-2">ยอดเงิน: {totalAmountNumber.toFixed(2)} บาท</p>
-                  <div className="inline-block p-2 border border-gray-300 rounded-lg bg-white shadow">
-                    <img src={generatedQrCodeUrl} alt="PromptPay QR Code" style={{ maxWidth: '250px', height: 'auto' }} />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    (QR Code นี้ถูกสร้างโดยใช้เบอร์โทรศัพท์จำลอง: 0812345678)
-                  </p>
-                </div>
+              {method === "qrcode" && (
+                <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
               )}
             </div>
+            <div className="text-center flex-1">
+              <img
+                src="https://via.placeholder.com/150x150.png?text=QR+Code"
+                alt="QR"
+                className="mx-auto mb-4"
+              />
+              <p className="font-semibold">QR Code (PromptPay)</p>
+            </div>
           </div>
-        )}
 
-        {!paymentMethod && (
-          <div className="text-center p-6 bg-gray-50 rounded-md">
-            <p className="text-gray-600">กรุณาเลือกวิธีการชำระเงิน</p>
+          {/* Cash */}
+          <div
+            className={`flex items-center p-6 border-2 rounded-xl cursor-pointer transition 
+              ${
+                method === "cash"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-300 hover:border-green-300"
+              }`}
+            onClick={() => setMethod("cash")}
+          >
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4
+                ${
+                  method === "cash"
+                    ? "border-green-500"
+                    : "border-gray-400"
+                }`}
+            >
+              {method === "cash" && (
+                <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+              )}
+            </div>
+            <div className="text-center flex-1">
+              <img
+                src="https://via.placeholder.com/150x150.png?text=Cash"
+                alt="Cash"
+                className="mx-auto mb-4"
+              />
+              <p className="font-semibold">เงินสด</p>
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* ปุ่ม */}
+        <div className="flex justify-center gap-6">
+          <button
+            className="px-6 py-3 bg-gray-300 text-gray-800 rounded-xl font-medium hover:bg-gray-400 transition"
+            onClick={() => navigate(-1)}
+          >
+            ยกเลิก
+          </button>
+          <button
+            disabled={!method}
+            onClick={confirmPayment}
+            className={`px-6 py-3 rounded-xl font-medium transition ${
+              method
+                ? "bg-green-500 text-white hover:bg-green-700"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
+          >
+            ชำระเงิน
+          </button>
+        </div>
       </div>
+
+      {/* Popup แสดง QR Code */}
+      {showQrPopup && generatedQrCodeUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[400px] text-center">
+            <h3 className="text-xl font-bold mb-4">สแกนเพื่อชำระเงิน</h3>
+            <p className="text-gray-600 mb-2">
+              Order ID: {order.id} | ยอดเงิน: ฿{totalAmountNumber.toFixed(2)}
+            </p>
+            <img
+              src={generatedQrCodeUrl}
+              alt="PromptPay QR"
+              className="mx-auto mb-4 max-w-[250px]"
+            />
+            <button
+              className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700"
+              onClick={() => setShowQrPopup(false)}
+            >
+              ปิด
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

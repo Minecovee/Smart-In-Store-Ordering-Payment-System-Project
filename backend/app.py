@@ -286,52 +286,83 @@ def delete_menu(menu_id):
 @app.route('/api/orders', methods=['GET'])
 def get_all_orders():
     """
-    Fetches orders from the 'orders' table.
+    Fetches all orders, including their associated order items and menu details,
+    from the database.
     Can filter by 'restaurant_id' if provided as a query parameter.
     """
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
+        # Using a dictionary cursor to fetch rows as key-value pairs
         cursor = conn.cursor(dictionary=True)
 
         restaurant_id = request.args.get('restaurant_id')
 
-        sql_query = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders"
+        # First, fetch all main orders
+        sql_orders = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders"
         params = []
-
         if restaurant_id:
-            sql_query += " WHERE restaurant_id = %s"
+            sql_orders += " WHERE restaurant_id = %s"
             params.append(restaurant_id)
+        sql_orders += " ORDER BY order_time DESC" # Sort by newest first
 
-        cursor.execute(sql_query, params)
+        cursor.execute(sql_orders, params)
         orders = cursor.fetchall()
-
+        
         formatted_orders = []
-        for order_item in orders:
-            item = order_item.copy()
-            if 'total_amount' in item and item['total_amount'] is not None:
-                item['total_amount'] = str(item['total_amount'])
-            if 'order_time' in item and item['order_time'] is not None:
-                item['order_time'] = item['order_time'].isoformat()
-            if 'updated_at' in item and item['updated_at'] is not None:
-                item['updated_at'] = item['updated_at'].isoformat()
-            formatted_orders.append(item)
+        # For each order, fetch its associated items with menu details
+        for order in orders:
+            sql_items = """
+            SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
+                   m.name AS menu_name, m.image_url AS menu_image
+            FROM order_items AS oi
+            JOIN menus AS m ON oi.menu_id = m.id
+            WHERE oi.order_id = %s
+            """
+            cursor.execute(sql_items, (order['id'],))
+            items = cursor.fetchall()
+
+            # Format items and add them to the order object
+            formatted_items = []
+            for item in items:
+                item_copy = item.copy()
+                if 'price_at_order' in item_copy and item_copy['price_at_order'] is not None:
+                    item_copy['price_at_order'] = str(item_copy['price_at_order'])
+                if 'created_at' in item_copy and item_copy['created_at'] is not None:
+                    item_copy['created_at'] = item_copy['created_at'].isoformat()
+                if 'updated_at' in item_copy and item_copy['updated_at'] is not None:
+                    item_copy['updated_at'] = item_copy['updated_at'].isoformat()
+                formatted_items.append(item_copy)
+            
+            order['items'] = formatted_items
+
+            # Format datetime/decimal for the main order object
+            if 'total_amount' in order and order['total_amount'] is not None:
+                order['total_amount'] = str(order['total_amount'])
+            if 'order_time' in order and order['order_time'] is not None:
+                order['order_time'] = order['order_time'].isoformat()
+            if 'updated_at' in order and order['updated_at'] is not None:
+                order['updated_at'] = order['updated_at'].isoformat()
+            
+            formatted_orders.append(order)
+
         return jsonify(formatted_orders), 200
     except Exception as e:
         print(f"Error in /api/orders (GET all): {e}")
         return jsonify({"error": "Failed to fetch orders", "detail": str(e)}), 500
     finally:
+        # Ensure database resources are closed
         if cursor:
             cursor.close()
         if conn:
             conn.close()
 
-# --- NEW: API Endpoint: Get Order by ID ---
+# --- API Endpoint: Get Order by ID ---
 @app.route('/api/orders/<int:order_id>', methods=['GET'])
 def get_order_by_id(order_id):
     """
-    Fetches a single order by its ID, including its associated order_items.
+    Fetches a single order by its ID, including its associated order_items and menu details.
     """
     conn = None
     cursor = None
@@ -347,8 +378,14 @@ def get_order_by_id(order_id):
         if not order:
             return jsonify({"message": "Order not found"}), 404
 
-        # Fetch associated order items
-        sql_items = "SELECT id, menu_id, quantity, price_at_order, notes, created_at, updated_at FROM order_items WHERE order_id = %s"
+        # Fetch associated order items with menu details
+        sql_items = """
+        SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
+               m.name AS menu_name, m.image_url AS menu_image
+        FROM order_items AS oi
+        JOIN menus AS m ON oi.menu_id = m.id
+        WHERE oi.order_id = %s
+        """
         cursor.execute(sql_items, (order_id,))
         items = cursor.fetchall()
 
@@ -427,9 +464,9 @@ def create_order():
             total_amount,
             status,
             payment_status,
-            current_time,       # order_time (now serves as creation timestamp)
+            current_time,      # order_time (now serves as creation timestamp)
             qr_code_url,
-            current_time        # updated_at
+            current_time       # updated_at
         )
 
         cursor.execute(sql_order, params_order)
@@ -802,24 +839,83 @@ def delete_employee(employee_id):
         if conn:
             conn.close()
 
-# --- API Endpoint: Simple Test ---
-@app.route('/api/test', methods=['GET'])
-def test_api():
+
+# --- API Endpoint: Get Dashboard Data ---
+@app.route('/api/admin/dashboard', methods=['GET'])
+def get_dashboard():
     """
-    A simple test endpoint to confirm that the Flask API is running and accessible.
-    Returns a basic JSON message.
+    Fetches all dashboard data (total sales, top products, sales by category) for a given month.
+    Requires a 'month' query parameter in 'YYYY-MM' format.
     """
-    return jsonify({"message": "API is working!", "data": "Hello from Flask backend!"}), 200
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Get Total Sales for the month
+        sql_total_sales = """
+            SELECT SUM(total_amount) AS total_sales
+            FROM orders
+            WHERE payment_status = 'paid'
+        """
+        cursor.execute(sql_total_sales)
+        total_sales_result = cursor.fetchone()
+        total_sales = float(total_sales_result['total_sales']) if total_sales_result and total_sales_result['total_sales'] is not None else 0.0
+
+        # 2. Get Top 5 Selling Products for the month
+        sql_top_items = """
+            SELECT
+                m.name,
+                SUM(oi.quantity) AS total_quantity,
+                SUM(oi.quantity * oi.price_at_order) AS total_amount
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.id
+            JOIN menus m ON oi.menu_id = m.id
+            WHERE o.payment_status = 'paid'
+            GROUP BY m.name
+            ORDER BY total_quantity DESC
+            LIMIT 5
+        """
+        cursor.execute(sql_top_items)
+        top_items = cursor.fetchall()
+
+        # 3. Get Sales by Category for the month
+        sql_category_sales = """
+            SELECT m.category, SUM(oi.quantity * oi.price_at_order) AS total_amount
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.id
+            JOIN menus m ON oi.menu_id = m.id
+            WHERE o.payment_status = 'paid'
+            GROUP BY m.category
+            ORDER BY total_amount DESC
+        """
+        cursor.execute(sql_category_sales)
+        category_sales = cursor.fetchall()
+
+        # Convert Decimal values to float for JSON serialization
+        for item in top_items:
+            item['total_amount'] = float(item['total_amount'])
+        for item in category_sales:
+            item['total_amount'] = float(item['total_amount'])
+
+        return jsonify({
+            "total_sales": total_sales,
+            "top_items": top_items,
+            "category_sales": category_sales
+        }), 200
+
+    except Exception as e:
+        print(f"Error in /api/admin/dashboard: {e}")
+        return jsonify({"error": "Failed to fetch dashboard data", "detail": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
-
-# --- Main Entry Point for Running the Flask App ---
 if __name__ == '__main__':
-    # When running this script directly (e.g., `python app.py`),
-    # the Flask development server will start.
-    # `debug=True` enables debug mode, which provides detailed error messages
-    # and automatically reloads the server on code changes.
-    # `port=5000` sets the listening port for the Flask application.
-    # `host='0.0.0.0'` makes the server accessible from any IP address,
-    # including your frontend running on localhost.
-    app.run(debug=True, port=5000, host='0.0.0.0') 
+    # Running the app in debug mode makes it restart automatically on code changes
+    # and provides a more detailed error page.
+    app.run(debug=True, port=5000)
