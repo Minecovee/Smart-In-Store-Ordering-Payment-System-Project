@@ -42,6 +42,14 @@ def get_db_connection():
         # To help with debugging, you can also print the variables being used
         # print(f"Host: {os.getenv('DB_HOST')}, User: {os.getenv('DB_USER')}, DB: {os.getenv('DB_NAME')}")
         raise
+# --- API Endpoint: POST login ---
+@app.route("/api/account/login", methods=["POST"])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    # ตรวจสอบใน DB แล้ว return token
+    return jsonify({"token": "xxx", "username": username, "role": "admin"})
 
 # --- API Endpoint: Get All Menus (with optional restaurant_id and category filters) ---
 @app.route('/api/menus', methods=['GET'])

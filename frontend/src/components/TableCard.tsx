@@ -1,5 +1,5 @@
 // components/TableCard.tsx
-import type { TableInfo } from "../controllers/TableControllers"; // หรือ path จริงของ TableInfo
+import type { TableInfo } from "../customer/controllers/TableControllers"; // หรือ path จริงของ TableInfo
 
 interface Props {
   table: TableInfo;
