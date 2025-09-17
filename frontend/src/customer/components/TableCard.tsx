@@ -4,11 +4,11 @@ import type { TableInfo } from "../controllers/TableControllers"; // หรื�
 interface Props {
   table: TableInfo;
   onToggle: (id: number) => void;
+  isSelected?: boolean; // เพิ่ม prop isSelected
   userType?: string;
 }
 
-export default function TableCard({ table, onToggle, userType }: Props) {
-  const isSelected = table.selected
+export default function TableCard({ table, onToggle, userType, isSelected=false}: Props) {
   const isFree = table.status === "free";
   return (
     <button
