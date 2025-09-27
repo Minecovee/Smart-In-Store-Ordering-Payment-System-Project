@@ -1,69 +1,86 @@
 import { useState } from "react";
-import { useAuthStore } from "../../../store/authStore";
-import { loginApi } from "../../services/AuthService";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useAuthStore } from "../../../store/authStore"; // สมมติคุณมี Zustand store สำหรับ auth
 
-export default function AdminLogin() {
-  const setAuth = useAuthStore((state) => state.setAuth);
+export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
     if (!username || !password) {
-      toast.warning("กรุณากรอก username และ password");
+      alert("กรุณากรอก username และ password");
       return;
     }
 
-    const result = await loginApi(username, password);
-    if (result) {
-      if (result.role !== "admin") {
-        toast.error("คุณไม่มีสิทธิ์เข้าหน้านี้");
-        return;
+    setLoading(true);
+    try {
+      const response = await axios.post("http://localhost:5000/api/auth/login", {
+        username,
+        password,
+      });
+
+      if (response.status === 200) {
+        const { token, role } = response.data;
+        setAuth(token, username, role);
+
+        if (role === "admin") {
+          navigate("/admin/dashboard");
+        } else {
+          alert("คุณไม่มีสิทธิ์เข้าหน้านี้");
+        }
       }
-
-      // ✅ เก็บข้อมูลลง localStorage
-      localStorage.setItem("jwtToken", result.token);
-      localStorage.setItem("username", result.username);
-      localStorage.setItem("role", result.role);
-
-      // ✅ sync state
-      setAuth(result.token, result.username, result.role);
-
-      toast.success("Login สำเร็จ");
-      navigate("/admin/dashboard");
-    } else {
-      toast.error("Login ล้มเหลว กรุณาตรวจสอบ username/password");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <ToastContainer />
-      <div className="bg-white p-8 rounded shadow-md w-96">
-        <h2 className="text-2xl font-bold mb-6 text-center">Admin Login</h2>
-        <input
-          type="text"
-          placeholder="Username"
-          className="border p-2 rounded w-full mb-4"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="border p-2 rounded w-full mb-4"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button
-          onClick={handleLogin}
-          className="bg-blue-500 text-white px-4 py-2 rounded w-full hover:bg-blue-600 transition-colors"
-        >
-          Login
-        </button>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-sm bg-white shadow-lg rounded-lg p-6">
+        <h2 className="text-2xl font-bold mb-6 text-center">🔑 Admin Login</h2>
+        <form onSubmit={handleLogin} className="flex flex-col gap-4">
+          <input
+            type="text"
+            placeholder="Username"
+            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded transition-colors disabled:opacity-50"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+
+        <p className="text-sm text-gray-500 mt-4 text-center">
+          ยังไม่มีบัญชี?{" "}
+          <span
+            className="text-green-500 cursor-pointer hover:underline"
+            onClick={() => navigate("/register")}
+          >
+            Register
+          </span>
+        </p>
       </div>
     </div>
   );

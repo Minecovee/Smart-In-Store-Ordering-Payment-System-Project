@@ -2,9 +2,12 @@ import sys
 import os
 import mysql.connector
 from flask import Flask, jsonify, request
+from flask_bcrypt import Bcrypt
+from functools import wraps
+import jwt
 from flask_cors import CORS
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, timezone 
 
 # Add the directory of app.py to Python's search path.
 sys.path.append(os.path.dirname(__file__))
@@ -14,42 +17,214 @@ load_dotenv()
 
 # Initialize the Flask application.
 app = Flask(__name__)
+bcrypt = Bcrypt(app)
+
+# --- กำหนด JWT_SECRET_KEY ให้ app.config ---
+DEFAULT_JWT_SECRET = '9f4g2H6p!zQ@kR7v$tY8uW^eJ0iL*oM3A(sD5fG)hJ1kL2zX3c'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', DEFAULT_JWT_SECRET)
+if app.config['JWT_SECRET_KEY'] == DEFAULT_JWT_SECRET and os.getenv('JWT_SECRET_KEY') is None:
+    print("Warning: JWT_SECRET_KEY is using the default value. Please set it in .env.")
+# -------------------------------------------------------------
 
 # Configure CORS (Cross-Origin Resource Sharing) for the Flask app.
-# Allows frontend from http://localhost:3000 to access these API endpoints.
-CORS(app, resources={r"/api/*": {"origins": [
+CORS(app, resources={r"/api/*": {"origins": [ 
     "http://localhost:5173"
 ]}})
 
 def get_db_connection():
     """
     Establishes and returns a new database connection using mysql.connector.
-    Database credentials (host, user, password, database name, port) are loaded
-    from environment variables defined in the .env file.
+    Note: Uses DB_PASS from .env file for password.
     """
     try:
         conn = mysql.connector.connect(
             host=os.getenv("DB_HOST", "localhost"),
             user=os.getenv("DB_USER", "root"),
-            password=os.getenv("DB_PASSWORD", "12345678"),
+            password=os.getenv("DB_PASSWORD", ""), 
             database=os.getenv("DB_NAME", "food_shopdb"),
             port=int(os.getenv("DB_PORT", 3306)),
             charset='utf8mb4'
+            
         )
         return conn
     except mysql.connector.Error as err:
         print(f"Database connection error: {err}")
-        # To help with debugging, you can also print the variables being used
-        # print(f"Host: {os.getenv('DB_HOST')}, User: {os.getenv('DB_USER')}, DB: {os.getenv('DB_NAME')}")
         raise
-# --- API Endpoint: POST login ---
-@app.route("/api/account/login", methods=["POST"])
-def login():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-    # ตรวจสอบใน DB แล้ว return token
-    return jsonify({"token": "xxx", "username": username, "role": "admin"})
+
+# ----------------------------------------------------------------------------------
+# **ฟังก์ชันสำหรับสร้าง Token (สอดคล้องกับ token_required)**
+# ----------------------------------------------------------------------------------
+def create_token(identity, expires_delta=timedelta(hours=24)):
+    """สร้าง JWT Token โดยใช้ PyJWT พร้อมกำหนดเวลาหมดอายุ 24 ชม."""
+    payload = {
+        # 'exp' (Expiration Time) ต้องมี
+        # แก้ไข: ใช้ datetime.now(timezone.utc) แทน datetime.utcnow() เพื่อเลี่ยง DeprecationWarning
+        'exp': datetime.now(timezone.utc) + expires_delta,
+        # 'iat' (Issued At)
+        'iat': datetime.now(timezone.utc),
+        # ใส่ identity (user data) เป็น payload หลัก
+        **identity 
+    }
+    return jwt.encode(
+        payload,
+        app.config['JWT_SECRET_KEY'],
+        algorithm='HS256'
+    )
+    
+def token_required(f):
+    """Decorator สำหรับตรวจสอบ JWT ก่อนเข้าถึง API"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # ดึง Token จาก Header 'Authorization: Bearer <token>'
+        token = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+
+        if not token:
+            return jsonify({'message': 'Token is missing!'}), 401
+        
+        try:
+            # ตรวจสอบและถอดรหัส Token
+            data = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            
+            # แนบข้อมูล user ที่ถอดรหัสแล้วเข้ากับ request object 
+            # เพื่อให้ฟังก์ชันที่ถูก decorate สามารถเข้าถึงได้
+            request.user_identity = data 
+            request.user_id = data.get('user_id')
+            
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired!'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Token is invalid!'}), 401
+
+        return f(*args, **kwargs)
+    return decorated
+
+# ----------------------------------------------------------------------------------
+# **Authentication Routes**
+# ----------------------------------------------------------------------------------
+
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
+    role = 'admin'  # กำหนดตายตัวเป็น admin
+
+    if not username or not password or not email:
+        return jsonify({'message': 'Username, password, and email are required'}), 400
+
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor(dictionary=True) as cursor:
+            # check duplicate username
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cursor.fetchone():
+                return jsonify({'message': 'Username already exists'}), 409
+
+            # check duplicate email
+            cursor.execute("SELECT id FROM restaurants WHERE email = %s", (email,))
+            if cursor.fetchone():
+                return jsonify({'message': 'Email already exists'}), 409
+
+            # create restaurant
+            cursor.execute(
+                "INSERT INTO restaurants (name, address, phone_number, email) VALUES (%s, %s, %s, %s)",
+                (f'ร้านค้าของ {username}', '', '', email)
+            )
+            cursor.execute("SELECT LAST_INSERT_ID() AS id")
+            new_restaurant_id = cursor.fetchone()['id']
+
+            # create user
+            cursor.execute(
+                "INSERT INTO users (username, password, role, restaurant_id) VALUES (%s, %s, %s, %s)",
+                (username, hashed_password, role, new_restaurant_id)
+            )
+            conn.commit()
+
+            response = {
+                'message': 'Admin registered, restaurant created successfully',
+                'username': username,
+                'role': role,
+                'restaurant_id': new_restaurant_id
+            }
+
+            return jsonify(response), 201
+    except Exception as e:
+        conn.rollback()
+        print(f"Database error during registration: {e}")
+        return jsonify({'message': f'Database error during registration: {str(e)}'}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    conn = get_db_connection()
+    user = None
+    try:
+        with conn.cursor(dictionary=True) as cursor:
+            # ดึงข้อมูลผู้ใช้ทั้งหมด (รวมถึง role และ restaurant_id)
+            cursor.execute(
+                "SELECT id, username, password, role, restaurant_id FROM users WHERE username = %s", 
+                (username,)
+            )
+            user = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if user and bcrypt.check_password_hash(user['password'], password):
+        # สร้าง JWT Payload โดยใส่ข้อมูลสำคัญลงไปด้วย
+        identity = {
+            'user_id': user['id'],
+            'username': user['username'],
+            'role': user['role'],
+            'restaurant_id': user['restaurant_id'] # ผูก ID ร้านค้าเข้ากับ Token
+        }
+        # ⚠️ แก้ไข: ใช้ฟังก์ชัน create_token ที่สร้างขึ้นเอง
+        access_token = create_token(identity)
+        
+        return jsonify({
+            'message': 'Login successful',
+            'token': access_token,
+            'role': user['role'],
+            'restaurant_id': user['restaurant_id']
+        }), 200
+    else:
+        return jsonify({'message': 'Invalid username or password'}), 401
+
+
+# ----------------------------------------------------------------------------------
+# **Protected Route**
+# ----------------------------------------------------------------------------------
+
+@app.route('/api/admin/protected_data', methods=['GET'])
+@token_required
+def get_protected_data():
+    """Route นี้เข้าถึงได้เฉพาะผู้ที่ Login และมี Token ที่ถูกต้องเท่านั้น"""
+    # สามารถเข้าถึง identity ที่ถอดรหัสจาก token ได้ผ่าน request.user_identity
+    identity = request.user_identity 
+    
+    return jsonify({
+        'message': 'Access granted: Data from JWT Token payload.',
+        'identity': identity,
+        'user_id_from_token': identity['user_id'],
+        'restaurant_id_from_token': identity['restaurant_id']
+    }), 200
+
+@app.route('/', methods=['GET'])
+def home():
+    """Home Route"""
+    return "Food Shop Backend (Flask/Python) Running..."
+
 
 # --- API Endpoint: Get All Menus (with optional restaurant_id and category filters) ---
 @app.route('/api/menus', methods=['GET'])
