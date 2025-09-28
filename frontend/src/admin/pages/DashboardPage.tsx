@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom"; // ✅ ใช้ react-router-dom
-import { useAuthStore } from "../../store/authStore"; // ✅ import store
+import { useNavigate } from "react-router-dom"; 
+import { useAuthStore } from "../../store/authStore";
 import {
   Card,
   Title,
@@ -45,16 +45,31 @@ export default function DashboardPage() {
   const [categorySales, setCategorySales] = useState<CategorySales[]>([]);
 
   const navigate = useNavigate(); 
-  const logout = useAuthStore((state) => state.logout); // ✅ get logout from store
+  const logout = useAuthStore((state) => state.logout);
 
   const fetchDashboard = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/admin/dashboard`);
+      const token = localStorage.getItem("jwtToken");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const res = await axios.get(`http://localhost:5000/api/admin/dashboard`, {
+        headers: {
+          Authorization: `Bearer ${token}` // ✅ ส่ง token ให้ backend
+        }
+      });
+
       setTotalSales(res.data.total_sales);
       setTopItems(res.data.top_items);
       setCategorySales(res.data.category_sales);
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        // token invalid หรือ expired
+        handleLogout();
+      }
     }
   };
 
@@ -63,13 +78,12 @@ export default function DashboardPage() {
   }, []);
 
   const handleLogout = () => {
-    // ✅ clear localStorage + store
     localStorage.removeItem("jwtToken");
     localStorage.removeItem("username");
     localStorage.removeItem("role");
 
     logout(); 
-    navigate("/login"); // redirect ไปหน้า login
+    navigate("/login");
   };
 
   return (

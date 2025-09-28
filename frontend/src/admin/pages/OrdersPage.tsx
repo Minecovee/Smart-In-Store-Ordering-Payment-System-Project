@@ -30,6 +30,7 @@ export default function OrdersPage() {
 
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
+  const token = localStorage.getItem("jwtToken"); // ดึง token
 
   const handleLogout = () => {
     localStorage.removeItem("jwtToken");
@@ -43,7 +44,12 @@ export default function OrdersPage() {
 
   const fetchOrders = () => {
     setLoading(true);
-    fetch('http://localhost:5000/api/orders')
+    fetch('http://localhost:5000/api/orders', {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    })
       .then(res => res.json())
       .then(data => setOrders(data))
       .catch(err => console.error("Failed to fetch orders:", err))
@@ -53,7 +59,10 @@ export default function OrdersPage() {
   const updateOrderStatus = (id: number, status: string) => {
     fetch(`http://localhost:5000/api/orders/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ status })
     }).then(() => fetchOrders());
   };
@@ -65,7 +74,10 @@ export default function OrdersPage() {
   };
   const handleConfirmAction = () => {
     if (orderToConfirm && actionToConfirm) updateOrderStatus(orderToConfirm.id, actionToConfirm);
-    setShowConfirmModal(false); setOrderToConfirm(null); setActionToConfirm(''); handleCloseItemsModal();
+    setShowConfirmModal(false);
+    setOrderToConfirm(null);
+    setActionToConfirm('');
+    handleCloseItemsModal();
   };
   const handleCancelAction = () => { setShowConfirmModal(false); setOrderToConfirm(null); setActionToConfirm(''); };
   const handleViewItems = (order: Order) => setSelectedOrder(order);

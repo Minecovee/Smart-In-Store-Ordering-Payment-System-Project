@@ -1,5 +1,5 @@
 import { formatDateTime } from "../../utils/formatDateTime";
-import TableCard from "../components/TableCard";
+import TableCard from "../../components/TableCard";
 import { useEffect, useMemo, useState } from "react";
 import { useTableController } from "../controllers/TableControllers";
 import { useNavigate } from "react-router-dom";

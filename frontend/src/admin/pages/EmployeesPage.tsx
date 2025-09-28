@@ -15,7 +15,7 @@ interface Employee {
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({ restaurant_id: 1 });
+  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editedEmployee, setEditedEmployee] = useState<Partial<Employee>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -25,16 +25,21 @@ export default function EmployeesPage() {
   const navigate = useNavigate(); 
   const logout = useAuthStore((state) => state.logout);
 
+  const jwtToken = localStorage.getItem("jwtToken");
+
   // --- Fetch employees ---
   const fetchEmployees = () => {
-    fetch('http://localhost:5000/api/employees')
+    fetch('http://localhost:5000/api/employees', {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    })
       .then(res => res.json())
-      .then(data => setEmployees(data));
+      .then(data => setEmployees(data))
+      .catch(err => console.error("Failed to fetch employees:", err));
   };
 
   useEffect(() => { fetchEmployees(); }, []);
 
-  // --- CRUD ---
+  // --- Create Employee ---
   const createEmployee = () => {
     if (!newEmployee.full_name || !newEmployee.position || !newEmployee.salary) {
       setValidationMessage("กรุณากรอกข้อมูลให้ครบถ้วน: ชื่อเต็ม, ตำแหน่ง และเงินเดือน");
@@ -45,14 +50,24 @@ export default function EmployeesPage() {
 
     fetch('http://localhost:5000/api/employees', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newEmployee, hire_date: currentISODate })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
+      body: JSON.stringify({ 
+        full_name: newEmployee.full_name,
+        position: newEmployee.position,
+        phone_number: newEmployee.phone_number,
+        salary: newEmployee.salary,
+        hire_date: currentISODate
+      })
     }).then(() => { 
       fetchEmployees(); 
-      setNewEmployee({ restaurant_id: 1 });
+      setNewEmployee({});
     });
   };
 
+  // --- Edit Employee ---
   const handleEditClick = (employee: Employee) => {
     setEditingId(employee.id);
     setEditedEmployee(employee);
@@ -61,7 +76,10 @@ export default function EmployeesPage() {
   const saveEditedEmployee = () => {
     fetch(`http://localhost:5000/api/employees/${editingId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
       body: JSON.stringify(editedEmployee)
     }).then(() => {
       setEditingId(null);
@@ -70,9 +88,12 @@ export default function EmployeesPage() {
     });
   };
 
+  // --- Delete Employee ---
   const deleteEmployee = (id: number) => {
-    fetch(`http://localhost:5000/api/employees/${id}`, { method: 'DELETE' })
-      .then(() => fetchEmployees());
+    fetch(`http://localhost:5000/api/employees/${id}`, { 
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    }).then(() => fetchEmployees());
   };
   
   const handleDeleteClick = (employee: Employee) => {
@@ -129,8 +150,6 @@ export default function EmployeesPage() {
           <input placeholder="เงินเดือน" className="border p-2 rounded flex-1"
             value={newEmployee.salary || ''} 
             onChange={e => setNewEmployee({ ...newEmployee, salary: e.target.value })} />
-          <input placeholder="รหัสร้านอาหาร" className="border p-2 rounded flex-1 bg-gray-100" 
-            value={newEmployee.restaurant_id || ''} readOnly />
           <button onClick={createEmployee} 
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
             ➕ สร้าง
@@ -149,7 +168,6 @@ export default function EmployeesPage() {
               <th className="py-3 px-4">เงินเดือน</th>
               <th className="py-3 px-4">เบอร์โทร</th>
               <th className="py-3 px-4">วันที่เริ่มงาน</th>
-              <th className="py-3 px-4">รหัสร้าน</th>
               <th className="py-3 px-4">การดำเนินการ</th>
             </tr>
           </thead>
@@ -192,7 +210,6 @@ export default function EmployeesPage() {
                       className="border p-1 w-full rounded" />
                   ) : emp.hire_date}
                 </td>
-                <td className="py-3 px-4">{emp.restaurant_id}</td>
                 <td className="py-3 px-4">
                   {editingId === emp.id ? (
                     <button

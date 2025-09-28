@@ -26,9 +26,18 @@ export default function LoginPage() {
       });
 
       if (response.status === 200) {
-        const { token, role } = response.data;
+        const { token, role, restaurant_id } = response.data;
+
+        // ✅ เก็บ JWT และ restaurant_id ลง localStorage
+        localStorage.setItem("jwtToken", token);
+        if (restaurant_id) {
+          localStorage.setItem("restaurant_id", restaurant_id.toString());
+        }
+
+        // ✅ เก็บลง Zustand store
         setAuth(token, username, role);
 
+        // ✅ Redirect ตาม role
         if (role === "admin") {
           navigate("/admin/dashboard");
         } else {
