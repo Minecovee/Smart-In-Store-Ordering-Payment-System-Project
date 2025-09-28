@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useAuthStore } from "../../store/authStore";
 
 interface Order {
   id: number;
@@ -11,63 +12,80 @@ interface Order {
 export default function PaymentPage() {
   const { order_id } = useParams<{ order_id: string }>();
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"qrcode" | "cash" | null>(null);
-  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(
-    null
-  );
+  const [generatedQrCodeUrl, setGeneratedQrCodeUrl] = useState<string | null>(null);
   const [showQrPopup, setShowQrPopup] = useState(false);
 
   // ดึงข้อมูล order
   const fetchOrder = async () => {
+    if (!token || !order_id) {
+      setError("คุณยังไม่ได้ login หรือ order_id ไม่ถูกต้อง");
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/orders/${order_id}`
+        `http://localhost:5000/api/orders/${order_id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       setOrder(response.data);
-    } catch (err: any) {
-      setError("ไม่สามารถดึงข้อมูลออเดอร์ได้");
+    } catch (err) {
       console.error(err);
+      setError("ไม่สามารถดึงข้อมูลออเดอร์ได้ หรือออเดอร์ไม่ใช่ของร้านคุณ");
     } finally {
       setLoading(false);
     }
   };
 
-  // อัปเดตเป็น "paid" ถ้าชำระด้วยเงินสด
-  const handleCashPayment = async () => {
-    if (!order) return;
-    try {
-      await axios.put(`http://localhost:5000/api/orders/${order.id}`, {
-        payment_status: "paid",
-      });
-      navigate("/payment-success");
-    } catch (err) {
-      console.error(err);
-      alert("ชำระเงินสดไม่สำเร็จ กรุณาลองใหม่");
-    }
+  // จ่ายเงินสด → redirect เลย
+  const handleCashPayment = () => {
+    alert("ออเดอร์ถูกสร้างแล้ว");
+    navigate("/payment-success");
   };
 
+  // ยืนยันการชำระเงิน
   const confirmPayment = () => {
     if (!order || !method) return;
+
     if (method === "cash") {
       handleCashPayment();
     } else if (method === "qrcode") {
-      const promptPayId = "0909634366"; // TODO: แก้เป็น env
+      const promptPayId = "0909634366"; // TODO: เปลี่ยนเป็น env
       const totalAmountNumber = parseFloat(order.total_amount);
-      const url = `https://promptpay.io/${promptPayId}/${totalAmountNumber.toFixed(
-        2
-      )}.png`;
+      const url = `https://promptpay.io/${promptPayId}/${totalAmountNumber.toFixed(2)}.png`;
       setGeneratedQrCodeUrl(url);
       setShowQrPopup(true);
+
+      // Polling ตรวจสอบ payment_status ทุก 3 วินาที
+      const interval = setInterval(async () => {
+        try {
+          const res = await axios.get(
+            `http://localhost:5000/api/orders/${order.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (res.data.payment_status === "paid") {
+            clearInterval(interval);
+            setShowQrPopup(false);
+            navigate("/payment-success");
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 5000);
     }
   };
 
   useEffect(() => {
-    if (order_id) fetchOrder();
-  }, [order_id]);
+    fetchOrder();
+  }, [order_id, token]);
 
   if (loading)
     return (
@@ -92,10 +110,20 @@ export default function PaymentPage() {
         onClick={() => navigate(-1)}
         className="self-start mb-4 flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="size-6"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+          />
         </svg>
-        
       </button>
 
       <div className="bg-white shadow-xl rounded-3xl p-8 w-full max-w-lg">
@@ -160,7 +188,6 @@ export default function PaymentPage() {
           </div>
         </div>
 
-        {/* ปุ่มยืนยัน */}
         <div className="mt-8 flex justify-center gap-6">
           <button
             className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition"

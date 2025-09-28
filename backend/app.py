@@ -89,7 +89,6 @@ def token_required(f):
             data = jwt.decode(token, app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
             current_user = {
                 "user_id": data["user_id"],
-                "role": data["role"],
                 "restaurant_id": data["restaurant_id"],
             }
         except Exception as e:
@@ -166,38 +165,44 @@ def login_user():
     username = data.get('username')
     password = data.get('password')
 
+    # --- ตรวจสอบว่าผู้ใช้เป็น customer หรือ admin ตาม pattern ---
+    is_customer = username.endswith("User")
+    login_username = username[:-4] if is_customer else username  # ตัดคำว่า 'User' ออกถ้าเป็น customer
+
     conn = get_db_connection()
     user = None
     try:
         with conn.cursor(dictionary=True) as cursor:
-            # ดึงข้อมูลผู้ใช้ทั้งหมด (รวมถึง role และ restaurant_id)
             cursor.execute(
-                "SELECT id, username, password, role, restaurant_id FROM users WHERE username = %s", 
-                (username,)
+                "SELECT id, username, password, restaurant_id FROM users WHERE username = %s",
+                (login_username,)
             )
             user = cursor.fetchone()
     finally:
         conn.close()
 
     if user and bcrypt.check_password_hash(user['password'], password):
-        # สร้าง JWT Payload โดยใส่ข้อมูลสำคัญลงไปด้วย
+        # ✅ log ตรวจสอบ
+        print(f"[LOGIN] username={username}, login_username={login_username}, is_customer={is_customer}")
+
         identity = {
             'user_id': user['id'],
             'username': user['username'],
-            'role': user['role'],
-            'restaurant_id': user['restaurant_id'] # ผูก ID ร้านค้าเข้ากับ Token
+            'restaurant_id': user['restaurant_id']
         }
-        # ⚠️ แก้ไข: ใช้ฟังก์ชัน create_token ที่สร้างขึ้นเอง
+
         access_token = create_token(identity)
-        
+
         return jsonify({
             'message': 'Login successful',
             'token': access_token,
-            'role': user['role'],
-            'restaurant_id': user['restaurant_id']
+            'restaurant_id': user['restaurant_id'],
+            'is_customer': is_customer  # ส่งไป frontend เพื่อ redirect
         }), 200
     else:
+        print(f"[LOGIN FAILED] username={username}")
         return jsonify({'message': 'Invalid username or password'}), 401
+
 
 
 # ----------------------------------------------------------------------------------

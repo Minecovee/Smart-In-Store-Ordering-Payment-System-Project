@@ -6,7 +6,7 @@ const PaymentSuccess: React.FC = () => {
     const navigate = useNavigate();
 
     const handleGoHome = () => {
-        navigate('/');
+        navigate('/'); // กลับไปหน้าแรกของร้านอาหาร
     };
 
     return (
@@ -19,10 +19,10 @@ const PaymentSuccess: React.FC = () => {
                 />
 
                 <Typography variant="h4" gutterBottom>
-                    Payment Successful!
+                    ชำระเงินสำเร็จ!
                 </Typography>
                 <Typography variant="subtitle1" gutterBottom>
-                    Thank you for your purchase. Your payment has been processed successfully.
+                    ขอบคุณที่ใช้บริการ ร้านอาหารของคุณได้รับการอัปเดตการชำระเงินเรียบร้อยแล้ว
                 </Typography>
                 <Button
                     variant="contained"
@@ -30,7 +30,7 @@ const PaymentSuccess: React.FC = () => {
                     sx={{ mt: 4 }}
                     onClick={handleGoHome}
                 >
-                    Go to Home
+                    กลับไปหน้าหลัก
                 </Button>
             </Box>
         </Container>

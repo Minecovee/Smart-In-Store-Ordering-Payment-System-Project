@@ -1,8 +1,9 @@
+'use client';
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { useAuthStore } from "../../../store/authStore"; // สมมติคุณมี Zustand store สำหรับ auth
+import { useAuthStore } from "../../../store/authStore";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -19,29 +20,30 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+
     try {
+      // --- ส่ง username/password ดิบไป backend
       const response = await axios.post("http://localhost:5000/api/auth/login", {
         username,
         password,
       });
 
       if (response.status === 200) {
-        const { token, role, restaurant_id } = response.data;
+        const { token, restaurant_id, is_customer } = response.data;
 
-        // ✅ เก็บ JWT และ restaurant_id ลง localStorage
+        // --- เก็บ JWT + restaurant_id ลง localStorage
         localStorage.setItem("jwtToken", token);
-        if (restaurant_id) {
-          localStorage.setItem("restaurant_id", restaurant_id.toString());
-        }
+        localStorage.setItem("username", username);
+        if (restaurant_id) localStorage.setItem("restaurant_id", restaurant_id.toString());
 
-        // ✅ เก็บลง Zustand store
-        setAuth(token, username, role);
+        // --- เก็บลง Zustand store
+        setAuth(token, username, "");
 
-        // ✅ Redirect ตาม role
-        if (role === "admin") {
-          navigate("/admin/dashboard");
+        // --- Redirect ตาม type ของ user
+        if (is_customer) {
+          navigate("/customer/table-reservation");
         } else {
-          alert("คุณไม่มีสิทธิ์เข้าหน้านี้");
+          navigate("/admin/dashboard");
         }
       }
     } catch (err: any) {
@@ -54,7 +56,7 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-sm bg-white shadow-lg rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-6 text-center">🔑 Admin Login</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">🔑 Login</h2>
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <input
             type="text"

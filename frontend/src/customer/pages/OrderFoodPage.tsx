@@ -47,7 +47,10 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
   // Fetch menus from backend
   const fetchMenus = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/menus");
+      const token = localStorage.getItem("jwtToken");
+      const response = await axios.get("http://localhost:5000/api/menus", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const menuData: MenuItem[] = response.data;
       setMenus(menuData);
       setFilteredMenus(menuData);
@@ -57,6 +60,7 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
       setLoading(false);
     }
   };
+  
 
   useEffect(() => {
     fetchMenus();

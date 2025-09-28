@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { useAuthStore } from "../../store/authStore"; // path ตามจริงของคุณ
 import type { CartItem } from "./OrderFoodPage";
 
 interface Props {
@@ -35,9 +36,14 @@ export default function CartPage({ cart, setCart }: Props) {
       return;
     }
 
+    const token = useAuthStore.getState().token;
+    if (!token) {
+      alert("กรุณา login ก่อนสั่งอาหาร");
+      return;
+    }
+
     try {
       const orderData = {
-        restaurant_id: 1,
         table_number: parsedTableNumber,
         total_amount: Number(totalAmount.toFixed(2)),
         status: "pending",
@@ -54,7 +60,12 @@ export default function CartPage({ cart, setCart }: Props) {
 
       const response = await axios.post(
         "http://localhost:5000/api/orders",
-        orderData
+        orderData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
       if (response.data?.order_id) {
@@ -70,15 +81,25 @@ export default function CartPage({ cart, setCart }: Props) {
   };
 
   return (
-
     <div className="min-h-screen bg-gray-100 p-6 pb-32">
       {/* ปุ่มย้อนกลับ */}
       <button
-        onClick={() => navigate(-1)} // กลับไปหน้าก่อนหน้า
+        onClick={() => navigate(-1)}
         className="self-start mb-4 flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="size-6"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+          />
         </svg>
       </button>
 
@@ -99,7 +120,6 @@ export default function CartPage({ cart, setCart }: Props) {
                 <div className="flex-1">
                   <h4 className="font-semibold">{item.name}</h4>
                   <div className="flex gap-2 mt-1">
-                    {/* Quantity input */}
                     <input
                       type="number"
                       min="1"
@@ -113,8 +133,6 @@ export default function CartPage({ cart, setCart }: Props) {
                       }
                       className="w-20 px-2 py-1 border rounded"
                     />
-
-                    {/* Notes input */}
                     <input
                       type="text"
                       value={item.notes}
@@ -144,7 +162,6 @@ export default function CartPage({ cart, setCart }: Props) {
         )}
       </div>
 
-      {/* Total + Checkout fixed */}
       <div className="fixed bottom-0 left-0 w-full bg-white p-4 border-t shadow-md flex justify-between items-center z-50">
         <span className="text-xl font-bold">
           ยอดรวม: ฿{totalAmount.toFixed(2)}
