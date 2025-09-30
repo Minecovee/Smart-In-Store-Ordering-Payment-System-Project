@@ -2,9 +2,12 @@ import sys
 import os
 import mysql.connector
 from flask import Flask, jsonify, request
+from flask_bcrypt import Bcrypt
+from functools import wraps
+import jwt
 from flask_cors import CORS
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, timezone 
 
 # Add the directory of app.py to Python's search path.
 sys.path.append(os.path.dirname(__file__))
@@ -14,18 +17,23 @@ load_dotenv()
 
 # Initialize the Flask application.
 app = Flask(__name__)
+bcrypt = Bcrypt(app)
+
+# --- กำหนด JWT_SECRET_KEY ให้ app.config ---
+DEFAULT_JWT_SECRET = '9f4g2H6p!zQ@kR7v$tY8uW^eJ0iL*oM3A(sD5fG)hJ1kL2zX3c'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', DEFAULT_JWT_SECRET)
+if app.config['JWT_SECRET_KEY'] == DEFAULT_JWT_SECRET and os.getenv('JWT_SECRET_KEY') is None:
+    print("Warning: JWT_SECRET_KEY is using the default value. Please set it in .env.")
+# -------------------------------------------------------------
 
 # Configure CORS (Cross-Origin Resource Sharing) for the Flask app.
-# Allows frontend from http://localhost:3000 to access these API endpoints.
-CORS(app, resources={r"/api/*": {"origins": [
-    "http://localhost:5173"
-]}})
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173"]}}, supports_credentials=True)
+
 
 def get_db_connection():
     """
     Establishes and returns a new database connection using mysql.connector.
-    Database credentials (host, user, password, database name, port) are loaded
-    from environment variables defined in the .env file.
+    Note: Uses DB_PASS from .env file for password.
     """
     try:
         conn = mysql.connector.connect(
@@ -35,62 +43,230 @@ def get_db_connection():
             database=os.getenv("DB_NAME", "food_shopdb"),
             port=int(os.getenv("DB_PORT", 3306)),
             charset='utf8mb4'
+            
         )
         return conn
     except mysql.connector.Error as err:
         print(f"Database connection error: {err}")
-        # To help with debugging, you can also print the variables being used
-        # print(f"Host: {os.getenv('DB_HOST')}, User: {os.getenv('DB_USER')}, DB: {os.getenv('DB_NAME')}")
         raise
 
-# --- API Endpoint: Get All Menus (with optional restaurant_id and category filters) ---
+# ----------------------------------------------------------------------------------
+# **ฟังก์ชันสำหรับสร้าง Token (สอดคล้องกับ token_required)**
+# ----------------------------------------------------------------------------------
+def create_token(identity, expires_delta=timedelta(hours=24)):
+    """สร้าง JWT Token โดยใช้ PyJWT พร้อมกำหนดเวลาหมดอายุ 24 ชม."""
+    payload = {
+        # 'exp' (Expiration Time) ต้องมี
+        # แก้ไข: ใช้ datetime.now(timezone.utc) แทน datetime.utcnow() เพื่อเลี่ยง DeprecationWarning
+        'exp': datetime.now(timezone.utc) + expires_delta,
+        # 'iat' (Issued At)
+        'iat': datetime.now(timezone.utc),
+        # ใส่ identity (user data) เป็น payload หลัก
+        **identity 
+    }
+    return jwt.encode(
+        payload,
+        app.config['JWT_SECRET_KEY'],
+        algorithm='HS256'
+    )
+    
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.method == "OPTIONS":  # allow preflight
+            return f(*args, **kwargs)
+
+        token = None
+        if "Authorization" in request.headers:
+            parts = request.headers["Authorization"].split(" ")
+            if len(parts) == 2 and parts[0] == "Bearer":
+                token = parts[1]
+
+        if not token:
+            return jsonify({"message": "Token is missing"}), 401
+
+        try:
+            data = jwt.decode(token, app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
+            current_user = {
+                "user_id": data["user_id"],
+                "restaurant_id": data["restaurant_id"],
+            }
+        except Exception as e:
+            return jsonify({"message": "Token is invalid", "detail": str(e)}), 401
+
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+
+# ----------------------------------------------------------------------------------
+# **Authentication Routes**
+# ----------------------------------------------------------------------------------
+
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
+    role = 'admin'  # กำหนดตายตัวเป็น admin
+
+    if not username or not password or not email:
+        return jsonify({'message': 'Username, password, and email are required'}), 400
+
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor(dictionary=True) as cursor:
+            # check duplicate username
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cursor.fetchone():
+                return jsonify({'message': 'Username already exists'}), 409
+
+            # check duplicate email
+            cursor.execute("SELECT id FROM restaurants WHERE email = %s", (email,))
+            if cursor.fetchone():
+                return jsonify({'message': 'Email already exists'}), 409
+
+            # create restaurant
+            cursor.execute(
+                "INSERT INTO restaurants (name, address, phone_number, email) VALUES (%s, %s, %s, %s)",
+                (f'ร้านค้าของ {username}', '', '', email)
+            )
+            cursor.execute("SELECT LAST_INSERT_ID() AS id")
+            new_restaurant_id = cursor.fetchone()['id']
+
+            # create user
+            cursor.execute(
+                "INSERT INTO users (username, password, role, restaurant_id) VALUES (%s, %s, %s, %s)",
+                (username, hashed_password, role, new_restaurant_id)
+            )
+            conn.commit()
+
+            response = {
+                'message': 'Admin registered, restaurant created successfully',
+                'username': username,
+                'role': role,
+                'restaurant_id': new_restaurant_id
+            }
+
+            return jsonify(response), 201
+    except Exception as e:
+        conn.rollback()
+        print(f"Database error during registration: {e}")
+        return jsonify({'message': f'Database error during registration: {str(e)}'}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    # --- ตรวจสอบว่าผู้ใช้เป็น customer หรือ admin ตาม pattern ---
+    is_customer = username.endswith("User")
+    login_username = username[:-4] if is_customer else username  # ตัดคำว่า 'User' ออกถ้าเป็น customer
+
+    conn = get_db_connection()
+    user = None
+    try:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(
+                "SELECT id, username, password, restaurant_id FROM users WHERE username = %s",
+                (login_username,)
+            )
+            user = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if user and bcrypt.check_password_hash(user['password'], password):
+        # ✅ log ตรวจสอบ
+        print(f"[LOGIN] username={username}, login_username={login_username}, is_customer={is_customer}")
+
+        identity = {
+            'user_id': user['id'],
+            'username': user['username'],
+            'restaurant_id': user['restaurant_id']
+        }
+
+        access_token = create_token(identity)
+
+        return jsonify({
+            'message': 'Login successful',
+            'token': access_token,
+            'restaurant_id': user['restaurant_id'],
+            'is_customer': is_customer  # ส่งไป frontend เพื่อ redirect
+        }), 200
+    else:
+        print(f"[LOGIN FAILED] username={username}")
+        return jsonify({'message': 'Invalid username or password'}), 401
+
+
+
+# ----------------------------------------------------------------------------------
+# **Protected Route**
+# ----------------------------------------------------------------------------------
+
+@app.route('/api/admin/protected_data', methods=['GET'])
+@token_required
+def get_protected_data():
+    """Route นี้เข้าถึงได้เฉพาะผู้ที่ Login และมี Token ที่ถูกต้องเท่านั้น"""
+    # สามารถเข้าถึง identity ที่ถอดรหัสจาก token ได้ผ่าน request.user_identity
+    identity = request.user_identity 
+    
+    return jsonify({
+        'message': 'Access granted: Data from JWT Token payload.',
+        'identity': identity,
+        'user_id_from_token': identity['user_id'],
+        'restaurant_id_from_token': identity['restaurant_id']
+    }), 200
+
+@app.route('/', methods=['GET'])
+def home():
+    """Home Route"""
+    return "Food Shop Backend (Flask/Python) Running..."
+
+
+# --- API Endpoint: Get All Menus ---
 @app.route('/api/menus', methods=['GET'])
-def get_all_menus():
-    """
-    Fetches menu items from the 'menus' table.
-    Can filter by 'restaurant_id' and 'category' if provided as query parameters.
-    """
+@token_required
+def get_all_menus(current_user):
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True) # Return results as dictionaries
+        cursor = conn.cursor(dictionary=True)
 
-        restaurant_id = request.args.get('restaurant_id')
-        category = request.args.get('category') # Get the category query parameter
+        restaurant_id = current_user["restaurant_id"]
+        category = request.args.get("category")
 
-        sql_query = "SELECT id, restaurant_id, name, description, base_price, category, image_url, is_available, created_at, updated_at FROM menus"
-        conditions = []
-        params = []
+        sql_query = """
+            SELECT id, restaurant_id, name, description, base_price, category,
+                   image_url, is_available, created_at, updated_at
+            FROM menus
+            WHERE restaurant_id = %s
+        """
+        params = [restaurant_id]
 
-        if restaurant_id:
-            conditions.append("restaurant_id = %s")
-            params.append(restaurant_id)
-
-        # NEW: Add category filtering
-        if category and category != 'All': # 'All' is a common frontend convention to show all categories
-            conditions.append("category = %s")
+        if category and category != "All":
+            sql_query += " AND category = %s"
             params.append(category)
-
-        # Append WHERE clause if there are any conditions
-        if conditions:
-            sql_query += " WHERE " + " AND ".join(conditions)
 
         cursor.execute(sql_query, params)
         menus = cursor.fetchall()
 
-        # Format fetched data for JSON response
+        # Format
         formatted_menus = []
         for menu_item in menus:
             item = menu_item.copy()
-            # Convert Decimal to string for JSON serialization
-            if 'base_price' in item and item['base_price'] is not None:
-                item['base_price'] = str(item['base_price'])
-            # Format datetime objects to ISO 8601 strings
-            if 'created_at' in item and item['created_at'] is not None:
-                item['created_at'] = item['created_at'].isoformat()
-            if 'updated_at' in item and item['updated_at'] is not None:
-                item['updated_at'] = item['updated_at'].isoformat()
+            if "base_price" in item and item["base_price"] is not None:
+                item["base_price"] = str(item["base_price"])
+            if "created_at" in item and item["created_at"] is not None:
+                item["created_at"] = item["created_at"].isoformat()
+            if "updated_at" in item and item["updated_at"] is not None:
+                item["updated_at"] = item["updated_at"].isoformat()
             formatted_menus.append(item)
 
         return jsonify(formatted_menus), 200
@@ -98,122 +274,93 @@ def get_all_menus():
         print(f"Error in /api/menus (GET all): {e}")
         return jsonify({"error": "Failed to fetch menus", "detail": str(e)}), 500
     finally:
-        # Ensure database resources are closed
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        if cursor: cursor.close()
+        if conn: conn.close()
 
-# --- NEWLY ADDED: API Endpoint: Get Single Menu by ID ---
+
+# --- Get Single Menu ---
 @app.route('/api/menus/<int:menu_id>', methods=['GET'])
-def get_menu_by_id(menu_id):
-    """
-    Fetches a single menu item by its ID.
-    Returns a JSON object of the menu item or a 404 if not found.
-    """
-    conn = None
-    cursor = None
+@token_required
+def get_menu_by_id(current_user, menu_id):
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True) # Return results as dictionaries
+        cursor = conn.cursor(dictionary=True)
 
-        sql_query = "SELECT id, restaurant_id, name, description, base_price, category, image_url, is_available, created_at, updated_at FROM menus WHERE id = %s"
-        cursor.execute(sql_query, (menu_id,))
-        menu_item = cursor.fetchone() # Fetch single row
+        sql_query = """
+            SELECT id, restaurant_id, name, description, base_price, category,
+                   image_url, is_available, created_at, updated_at
+            FROM menus
+            WHERE id = %s AND restaurant_id = %s
+        """
+        cursor.execute(sql_query, (menu_id, current_user["restaurant_id"]))
+        menu_item = cursor.fetchone()
 
         if not menu_item:
             return jsonify({"message": "Menu not found"}), 404
 
-        # Format fetched data for JSON response
         item = menu_item.copy()
-        if 'base_price' in item and item['base_price'] is not None:
-            item['base_price'] = str(item['base_price'])
-        if 'created_at' in item and item['created_at'] is not None:
-            item['created_at'] = item['created_at'].isoformat()
-        if 'updated_at' in item and item['updated_at'] is not None:
-            item['updated_at'] = item['updated_at'].isoformat()
+        if "base_price" in item and item["base_price"] is not None:
+            item["base_price"] = str(item["base_price"])
+        if "created_at" in item and item["created_at"] is not None:
+            item["created_at"] = item["created_at"].isoformat()
+        if "updated_at" in item and item["updated_at"] is not None:
+            item["updated_at"] = item["updated_at"].isoformat()
 
         return jsonify(item), 200
-    except Exception as e:
-        print(f"Error in /api/menus/{menu_id} (GET single): {e}")
-        return jsonify({"error": "Failed to fetch menu by ID", "detail": str(e)}), 500
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
 
-# --- NEW: API Endpoint: Create Menu ---
+# --- Create Menu ---
 @app.route('/api/menus', methods=['POST'])
-def create_menu():
-    """
-    Creates a new menu item in the 'menus' table.
-    Expects JSON with 'restaurant_id', 'name', 'description', 'base_price', 'category', 'image_url', 'is_available'.
-    """
+@token_required
+def create_menu(current_user):
     data = request.get_json()
-    restaurant_id = data.get('restaurant_id')
     name = data.get('name')
     description = data.get('description')
     base_price = data.get('base_price')
     category = data.get('category')
     image_url = data.get('image_url')
-    is_available = data.get('is_available', True) # Default to True if not provided
+    is_available = data.get('is_available', True)
 
-    if not restaurant_id or not name or base_price is None or not category:
+    if not name or base_price is None or not category:
         return jsonify({"error": "Missing required menu data"}), 400
 
-    conn = None
-    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         current_time = datetime.now()
 
         sql = """
-        INSERT INTO menus (restaurant_id, name, description, base_price, category, image_url, is_available, created_at, updated_at)
+        INSERT INTO menus (restaurant_id, name, description, base_price, category,
+                           image_url, is_available, created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         params = (
-            restaurant_id, name, description, base_price, category, image_url, is_available,
-            current_time, current_time
+            current_user["restaurant_id"], name, description, base_price,
+            category, image_url, is_available, current_time, current_time
         )
         cursor.execute(sql, params)
         conn.commit()
-        new_menu_id = cursor.lastrowid
-        return jsonify({"message": "Menu created successfully", "id": new_menu_id}), 201
-    except Exception as e:
-        if conn:
-            conn.rollback() # Rollback transaction in case of error
-        print(f"Error in /api/menus (POST): {e}")
-        return jsonify({"error": "Failed to create menu", "detail": str(e)}), 500
+        return jsonify({"message": "Menu created successfully", "id": cursor.lastrowid}), 201
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
-# --- NEW: API Endpoint: Update Menu ---
+
+# --- Update Menu ---
 @app.route('/api/menus/<int:menu_id>', methods=['PUT', 'PATCH'])
-def update_menu(menu_id):
-    """
-    Updates an existing menu item in the 'menus' table.
-    Expects JSON with fields to update.
-    """
+@token_required
+def update_menu(current_user, menu_id):
     data = request.get_json()
     if not data:
-        return jsonify({"error": "No data provided for update"}), 400
+        return jsonify({"error": "No data provided"}), 400
 
-    conn = None
-    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # Build dynamic update query
-        set_clauses = []
-        params = []
-        current_time = datetime.now()
+        set_clauses, params = [], []
 
         for key, value in data.items():
             if key in ['name', 'description', 'category', 'image_url']:
@@ -221,130 +368,100 @@ def update_menu(menu_id):
                 params.append(value)
             elif key == 'base_price':
                 set_clauses.append(f"{key} = %s")
-                params.append(float(value)) # Ensure price is float/decimal
+                params.append(float(value))
             elif key == 'is_available':
                 set_clauses.append(f"{key} = %s")
                 params.append(bool(value))
-            # restaurant_id might be immutable or handled separately if allowed to change
 
-        set_clauses.append("updated_at = %s") # Always update updated_at
-        params.append(current_time)
+        set_clauses.append("updated_at = %s")
+        params.append(datetime.now())
+        params.extend([menu_id, current_user["restaurant_id"]])
 
-        if not set_clauses:
-            return jsonify({"message": "No valid fields provided for update"}), 200
-
-        sql = f"UPDATE menus SET {', '.join(set_clauses)} WHERE id = %s"
-        params.append(menu_id) # Add menu_id for WHERE clause
-
+        sql = f"""
+        UPDATE menus
+        SET {', '.join(set_clauses)}
+        WHERE id = %s AND restaurant_id = %s
+        """
         cursor.execute(sql, params)
         conn.commit()
 
         if cursor.rowcount == 0:
-            return jsonify({"message": "Menu not found or no changes made"}), 404
+            return jsonify({"message": "Menu not found or no changes"}), 404
         return jsonify({"message": "Menu updated successfully"}), 200
-    except Exception as e:
-        if conn:
-            conn.rollback() # Rollback transaction in case of error
-        print(f"Error in /api/menus/{menu_id} (PUT/PATCH): {e}")
-        return jsonify({"error": "Failed to update menu", "detail": str(e)}), 500
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
-# --- NEW: API Endpoint: Delete Menu ---
+
+# --- Delete Menu ---
 @app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
-def delete_menu(menu_id):
-    """
-    Deletes a menu item from the 'menus' table.
-    """
-    conn = None
-    cursor = None
+@token_required
+def delete_menu(current_user, menu_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = "DELETE FROM menus WHERE id = %s"
-        cursor.execute(sql, (menu_id,))
+        sql = "DELETE FROM menus WHERE id = %s AND restaurant_id = %s"
+        cursor.execute(sql, (menu_id, current_user["restaurant_id"]))
         conn.commit()
 
         if cursor.rowcount == 0:
             return jsonify({"message": "Menu not found"}), 404
         return jsonify({"message": "Menu deleted successfully"}), 200
-    except Exception as e:
-        if conn:
-            conn.rollback() # Rollback transaction in case of error
-        print(f"Error in /api/menus/{menu_id} (DELETE): {e}")
-        return jsonify({"error": "Failed to delete menu", "detail": str(e)}), 500
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
-# --- API Endpoint: Get All Orders (with optional restaurant_id filter) ---
+
 @app.route('/api/orders', methods=['GET'])
-def get_all_orders():
-    """
-    Fetches all orders, including their associated order items and menu details,
-    from the database.
-    Can filter by 'restaurant_id' if provided as a query parameter.
-    """
+@token_required
+def get_all_orders(current_user):
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        # Using a dictionary cursor to fetch rows as key-value pairs
         cursor = conn.cursor(dictionary=True)
+        restaurant_id = current_user["restaurant_id"]
 
-        restaurant_id = request.args.get('restaurant_id')
-
-        # First, fetch all main orders
-        sql_orders = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders"
-        params = []
-        if restaurant_id:
-            sql_orders += " WHERE restaurant_id = %s"
-            params.append(restaurant_id)
-        sql_orders += " ORDER BY order_time DESC" # Sort by newest first
-
-        cursor.execute(sql_orders, params)
+        sql_orders = """
+            SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url
+            FROM orders
+            WHERE restaurant_id = %s
+            ORDER BY order_time DESC
+        """
+        cursor.execute(sql_orders, (restaurant_id,))
         orders = cursor.fetchall()
-        
+
         formatted_orders = []
-        # For each order, fetch its associated items with menu details
         for order in orders:
             sql_items = """
-            SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
-                   m.name AS menu_name, m.image_url AS menu_image
-            FROM order_items AS oi
-            JOIN menus AS m ON oi.menu_id = m.id
-            WHERE oi.order_id = %s
+                SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
+                       m.name AS menu_name, m.image_url AS menu_image
+                FROM order_items AS oi
+                JOIN menus AS m ON oi.menu_id = m.id
+                WHERE oi.order_id = %s
             """
             cursor.execute(sql_items, (order['id'],))
             items = cursor.fetchall()
 
-            # Format items and add them to the order object
             formatted_items = []
             for item in items:
                 item_copy = item.copy()
-                if 'price_at_order' in item_copy and item_copy['price_at_order'] is not None:
+                if item_copy.get('price_at_order') is not None:
                     item_copy['price_at_order'] = str(item_copy['price_at_order'])
-                if 'created_at' in item_copy and item_copy['created_at'] is not None:
+                if item_copy.get('created_at'):
                     item_copy['created_at'] = item_copy['created_at'].isoformat()
-                if 'updated_at' in item_copy and item_copy['updated_at'] is not None:
+                if item_copy.get('updated_at'):
                     item_copy['updated_at'] = item_copy['updated_at'].isoformat()
                 formatted_items.append(item_copy)
-            
-            order['items'] = formatted_items
 
-            # Format datetime/decimal for the main order object
-            if 'total_amount' in order and order['total_amount'] is not None:
+            order['items'] = formatted_items
+            if order.get('total_amount') is not None:
                 order['total_amount'] = str(order['total_amount'])
-            if 'order_time' in order and order['order_time'] is not None:
+            if order.get('order_time'):
                 order['order_time'] = order['order_time'].isoformat()
-            if 'updated_at' in order and order['updated_at'] is not None:
+            if order.get('updated_at'):
                 order['updated_at'] = order['updated_at'].isoformat()
-            
+
             formatted_orders.append(order)
 
         return jsonify(formatted_orders), 200
@@ -352,63 +469,61 @@ def get_all_orders():
         print(f"Error in /api/orders (GET all): {e}")
         return jsonify({"error": "Failed to fetch orders", "detail": str(e)}), 500
     finally:
-        # Ensure database resources are closed
         if cursor:
             cursor.close()
         if conn:
             conn.close()
 
+
 # --- API Endpoint: Get Order by ID ---
 @app.route('/api/orders/<int:order_id>', methods=['GET'])
-def get_order_by_id(order_id):
-    """
-    Fetches a single order by its ID, including its associated order_items and menu details.
-    """
+@token_required
+def get_order_by_id(current_user, order_id):
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        restaurant_id = current_user['restaurant_id']
 
-        # Fetch main order details
-        sql_order = "SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url FROM orders WHERE id = %s"
-        cursor.execute(sql_order, (order_id,))
+        sql_order = """
+            SELECT id, restaurant_id, table_number, total_amount, status, payment_status, order_time, updated_at, qr_code_url
+            FROM orders
+            WHERE id = %s AND restaurant_id = %s
+        """
+        cursor.execute(sql_order, (order_id, restaurant_id))
         order = cursor.fetchone()
-
         if not order:
             return jsonify({"message": "Order not found"}), 404
 
-        # Fetch associated order items with menu details
         sql_items = """
-        SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
-               m.name AS menu_name, m.image_url AS menu_image
-        FROM order_items AS oi
-        JOIN menus AS m ON oi.menu_id = m.id
-        WHERE oi.order_id = %s
+            SELECT oi.id, oi.menu_id, oi.quantity, oi.price_at_order, oi.notes, oi.created_at, oi.updated_at,
+                   m.name AS menu_name, m.image_url AS menu_image
+            FROM order_items AS oi
+            JOIN menus AS m ON oi.menu_id = m.id
+            WHERE oi.order_id = %s
         """
         cursor.execute(sql_items, (order_id,))
         items = cursor.fetchall()
 
-        # Format datetime/decimal for JSON
-        if 'total_amount' in order and order['total_amount'] is not None:
-            order['total_amount'] = str(order['total_amount'])
-        if 'order_time' in order and order['order_time'] is not None:
-            order['order_time'] = order['order_time'].isoformat()
-        if 'updated_at' in order and order['updated_at'] is not None:
-            order['updated_at'] = order['updated_at'].isoformat()
-
         formatted_items = []
         for item in items:
             item_copy = item.copy()
-            if 'price_at_order' in item_copy and item_copy['price_at_order'] is not None:
+            if item_copy.get('price_at_order') is not None:
                 item_copy['price_at_order'] = str(item_copy['price_at_order'])
-            if 'created_at' in item_copy and item_copy['created_at'] is not None:
+            if item_copy.get('created_at'):
                 item_copy['created_at'] = item_copy['created_at'].isoformat()
-            if 'updated_at' in item_copy and item_copy['updated_at'] is not None:
+            if item_copy.get('updated_at'):
                 item_copy['updated_at'] = item_copy['updated_at'].isoformat()
             formatted_items.append(item_copy)
 
-        order['items'] = formatted_items # Attach items to the order object
+        order['items'] = formatted_items
+        if order.get('total_amount') is not None:
+            order['total_amount'] = str(order['total_amount'])
+        if order.get('order_time'):
+            order['order_time'] = order['order_time'].isoformat()
+        if order.get('updated_at'):
+            order['updated_at'] = order['updated_at'].isoformat()
 
         return jsonify(order), 200
     except Exception as e:
@@ -420,18 +535,13 @@ def get_order_by_id(order_id):
         if conn:
             conn.close()
 
-# --- API Endpoint: Create a New Order (now handles order_items) ---
+
+# --- API Endpoint: Create a New Order ---
 @app.route('/api/orders', methods=['POST'])
-def create_order():
-    """
-    Receives new order data and its items from the frontend.
-    Inserts the main order into 'orders' table and each item into 'order_items' table.
-    Expects JSON with:
-    'restaurant_id', 'table_number', 'total_amount', 'status', 'payment_status',
-    'items': [{ 'menu_id', 'quantity', 'price_at_order', 'notes' }]
-    """
+@token_required
+def create_order(current_user):
     data = request.get_json()
-    restaurant_id = data.get('restaurant_id')
+    restaurant_id = current_user["restaurant_id"]
     table_number = data.get('table_number')
     total_amount = data.get('total_amount')
     status = data.get('status')
@@ -439,8 +549,8 @@ def create_order():
     qr_code_url = data.get('qr_code_url', None)
     items = data.get('items', [])
 
-    if not restaurant_id or table_number is None or total_amount is None or not status or not payment_status:
-        return jsonify({"error": "Missing required order data for main order"}), 400
+    if table_number is None or total_amount is None or not status or not payment_status:
+        return jsonify({"error": "Missing required order data"}), 400
     if not isinstance(items, list):
         return jsonify({"error": "Items must be a list"}), 400
 
@@ -448,92 +558,68 @@ def create_order():
     cursor = None
     try:
         conn = get_db_connection()
-        conn.autocommit = False # Start a transaction for atomicity
+        conn.autocommit = False
         cursor = conn.cursor()
-
         current_time = datetime.now()
 
-        # 1. Insert into the 'orders' table
         sql_order = """
-        INSERT INTO orders (restaurant_id, table_number, total_amount, status, payment_status, order_time, qr_code_url, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO orders (restaurant_id, table_number, total_amount, status, payment_status, order_time, qr_code_url, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
-        params_order = (
-            restaurant_id,
-            table_number,
-            total_amount,
-            status,
-            payment_status,
-            current_time,      # order_time (now serves as creation timestamp)
-            qr_code_url,
-            current_time       # updated_at
-        )
-
+        params_order = (restaurant_id, table_number, total_amount, status, payment_status, current_time, qr_code_url, current_time)
         cursor.execute(sql_order, params_order)
-        new_order_id = cursor.lastrowid # Get the ID of the newly created order
+        new_order_id = cursor.lastrowid
 
-        # 2. Insert into the 'order_items' table for each item
         if items:
             sql_order_item = """
-            INSERT INTO order_items (order_id, menu_id, quantity, price_at_order, notes, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO order_items (order_id, menu_id, quantity, price_at_order, notes, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             for item in items:
                 menu_id = item.get('menu_id')
                 quantity = item.get('quantity')
                 price_at_order = item.get('price_at_order')
                 notes = item.get('notes', None)
-
                 if menu_id is None or quantity is None or price_at_order is None:
                     raise ValueError(f"Missing required data for an order item: {item}")
+                cursor.execute(sql_order_item, (new_order_id, menu_id, quantity, price_at_order, notes, current_time, current_time))
 
-                params_order_item = (
-                    new_order_id, # Link to the newly created order
-                    menu_id,
-                    quantity,
-                    price_at_order,
-                    notes,
-                    current_time, # created_at for order_item
-                    current_time  # updated_at for order_item
-                )
-                cursor.execute(sql_order_item, params_order_item)
-
-        conn.commit() # Commit the entire transaction
+        conn.commit()
         return jsonify({"message": "Order and items created successfully", "order_id": new_order_id}), 201
     except ValueError as ve:
         if conn:
-            conn.rollback() # Rollback in case of validation error
-        print(f"Order item validation error: {ve}")
-        return jsonify({"error": "Failed to create order due to item data validation", "detail": str(ve)}), 400
+            conn.rollback()
+        return jsonify({"error": "Item validation error", "detail": str(ve)}), 400
     except Exception as e:
         if conn:
-            conn.rollback() # Rollback in case of any other error
-        print(f"Error in /api/orders (POST): {e}")
+            conn.rollback()
         return jsonify({"error": "Failed to create order", "detail": str(e)}), 500
     finally:
-        # Ensure resources are closed and autocommit is reset
         if cursor:
             cursor.close()
         if conn:
             conn.close()
-            # conn.autocommit = True # Not needed if connection is closed after use
 
-# --- NEW: API Endpoint: Update Order ---
+
+# --- API Endpoint: Update Order ---
 @app.route('/api/orders/<int:order_id>', methods=['PUT', 'PATCH'])
-def update_order(order_id):
-    """
-    Updates an existing order in the 'orders' table.
-    Expects JSON with fields to update (e.g., 'status', 'payment_status', 'total_amount', 'table_number').
-    """
+@token_required
+def update_order(current_user, order_id):
     data = request.get_json()
     if not data:
-        return jsonify({"error": "No data provided for update"}), 400
+        return jsonify({"error": "No data provided"}), 400
 
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        restaurant_id = current_user["restaurant_id"]
+
+        # ตรวจสอบว่า order เป็นของร้านนี้
+        cursor.execute("SELECT id FROM orders WHERE id=%s AND restaurant_id=%s", (order_id, restaurant_id))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Order not found or unauthorized"}), 404
 
         set_clauses = []
         params = []
@@ -541,38 +627,36 @@ def update_order(order_id):
 
         for key, value in data.items():
             if key in ['status', 'payment_status']:
-                set_clauses.append(f"{key} = %s")
+                set_clauses.append(f"{key}=%s")
                 params.append(value)
             elif key == 'total_amount':
-                set_clauses.append(f"{key} = %s")
-                params.append(float(value)) # Convert to float for DB
+                set_clauses.append(f"{key}=%s")
+                params.append(float(value))
             elif key == 'table_number':
-                set_clauses.append(f"{key} = %s")
-                params.append(int(value)) # Convert to int for DB
-            elif key == 'qr_code_url': # Allow updating QR code URL
-                set_clauses.append(f"{key} = %s")
+                set_clauses.append(f"{key}=%s")
+                params.append(int(value))
+            elif key == 'qr_code_url':
+                set_clauses.append(f"{key}=%s")
                 params.append(value)
-            # order_time and restaurant_id are typically not updated via this endpoint
 
-        set_clauses.append("updated_at = %s") # Always update updated_at
+        set_clauses.append("updated_at=%s")
         params.append(current_time)
+        params.append(order_id)
 
         if not set_clauses:
             return jsonify({"message": "No valid fields provided for update"}), 200
 
-        sql = f"UPDATE orders SET {', '.join(set_clauses)} WHERE id = %s"
-        params.append(order_id)
-
+        sql = f"UPDATE orders SET {', '.join(set_clauses)} WHERE id=%s AND restaurant_id=%s"
+        params.append(restaurant_id)
         cursor.execute(sql, params)
         conn.commit()
 
         if cursor.rowcount == 0:
-            return jsonify({"message": "Order not found or no changes made"}), 404
+            return jsonify({"message": "No changes made"}), 404
         return jsonify({"message": "Order updated successfully"}), 200
     except Exception as e:
         if conn:
             conn.rollback()
-        print(f"Error in /api/orders/{order_id} (PUT/PATCH): {e}")
         return jsonify({"error": "Failed to update order", "detail": str(e)}), 500
     finally:
         if cursor:
@@ -580,20 +664,20 @@ def update_order(order_id):
         if conn:
             conn.close()
 
-# --- NEW: API Endpoint: Delete Order ---
+
+# --- API Endpoint: Delete Order ---
 @app.route('/api/orders/<int:order_id>', methods=['DELETE'])
-def delete_order(order_id):
-    """
-    Deletes an order from the 'orders' table and cascades to 'order_items'
-    if the foreign key constraint is set up with ON DELETE CASCADE.
-    """
+@token_required
+def delete_order(current_user, order_id):
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = "DELETE FROM orders WHERE id = %s"
-        cursor.execute(sql, (order_id,))
+        restaurant_id = current_user["restaurant_id"]
+
+        sql = "DELETE FROM orders WHERE id=%s AND restaurant_id=%s"
+        cursor.execute(sql, (order_id, restaurant_id))
         conn.commit()
 
         if cursor.rowcount == 0:
@@ -602,7 +686,6 @@ def delete_order(order_id):
     except Exception as e:
         if conn:
             conn.rollback()
-        print(f"Error in /api/orders/{order_id} (DELETE): {e}")
         return jsonify({"error": "Failed to delete order", "detail": str(e)}), 500
     finally:
         if cursor:
@@ -610,40 +693,40 @@ def delete_order(order_id):
         if conn:
             conn.close()
 
-# --- NEW: API Endpoint: Get Order Items by Order ID ---
+
+# --- API Endpoint: Get Order Items by Order ID ---
 @app.route('/api/orders/<int:order_id>/items', methods=['GET'])
-def get_order_items_by_order_id(order_id):
-    """
-    Fetches all items associated with a specific order ID from the 'order_items' table.
-    """
+@token_required
+def get_order_items_by_order_id(current_user, order_id):
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        restaurant_id = current_user["restaurant_id"]
 
-        sql_query = "SELECT id, order_id, menu_id, quantity, price_at_order, notes, created_at, updated_at FROM order_items WHERE order_id = %s"
+        # ตรวจสอบ order เป็นของร้านนี้
+        cursor.execute("SELECT id FROM orders WHERE id=%s AND restaurant_id=%s", (order_id, restaurant_id))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Order not found or unauthorized"}), 404
+
+        sql_query = "SELECT id, order_id, menu_id, quantity, price_at_order, notes, created_at, updated_at FROM order_items WHERE order_id=%s"
         cursor.execute(sql_query, (order_id,))
         items = cursor.fetchall()
 
         formatted_items = []
         for item in items:
             item_copy = item.copy()
-            if 'price_at_order' in item_copy and item_copy['price_at_order'] is not None:
+            if item_copy.get('price_at_order') is not None:
                 item_copy['price_at_order'] = str(item_copy['price_at_order'])
-            if 'created_at' in item_copy and item_copy['created_at'] is not None:
+            if item_copy.get('created_at'):
                 item_copy['created_at'] = item_copy['created_at'].isoformat()
-            if 'updated_at' in item_copy and item_copy['updated_at'] is not None:
+            if item_copy.get('updated_at'):
                 item_copy['updated_at'] = item_copy['updated_at'].isoformat()
             formatted_items.append(item_copy)
 
-        if not formatted_items:
-            # Return 200 with empty list if no items, rather than 404, as the order might exist.
-            return jsonify({"message": "No items found for this order", "items": []}), 200
-
-        return jsonify(formatted_items), 200
+        return jsonify({"items": formatted_items}), 200
     except Exception as e:
-        print(f"Error in /api/orders/{order_id}/items: {e}")
         return jsonify({"error": "Failed to fetch order items", "detail": str(e)}), 500
     finally:
         if cursor:
@@ -651,13 +734,12 @@ def get_order_items_by_order_id(order_id):
         if conn:
             conn.close()
 
-
-# --- API Endpoint: Get All Employees (with optional restaurant_id filter) ---
+# --- API Endpoint: Get All Employees ของร้านผู้ใช้งาน ---
 @app.route('/api/employees', methods=['GET'])
-def get_all_employees():
+@token_required
+def get_all_employees(current_user):
     """
-    Fetches employees from the 'employees' table.
-    Can filter by 'restaurant_id' if provided as a query parameter.
+    Fetches employees for the logged-in user's restaurant only.
     """
     conn = None
     cursor = None
@@ -665,31 +747,28 @@ def get_all_employees():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        restaurant_id = request.args.get('restaurant_id')
+        restaurant_id = current_user["restaurant_id"]
 
-        # Updated: Removed 'email' from SELECT query
-        sql_query = "SELECT id, full_name, position, phone_number, salary, hire_date, created_at, updated_at, restaurant_id FROM employees"
-        params = []
-
-        if restaurant_id:
-            sql_query += " WHERE restaurant_id = %s"
-            params.append(restaurant_id)
-
-        cursor.execute(sql_query, params)
+        sql_query = """
+        SELECT id, full_name, position, phone_number, salary, hire_date, created_at, updated_at, restaurant_id
+        FROM employees
+        WHERE restaurant_id = %s
+        """
+        cursor.execute(sql_query, (restaurant_id,))
         employees = cursor.fetchall()
 
         formatted_employees = []
-        for employee_item in employees:
-            item = employee_item.copy()
-            if 'salary' in item and item['salary'] is not None:
-                item['salary'] = str(item['salary'])
-            if 'hire_date' in item and item['hire_date'] is not None:
-                item['hire_date'] = item['hire_date'].isoformat()
-            if 'created_at' in item and item['created_at'] is not None:
-                item['created_at'] = item['created_at'].isoformat()
-            if 'updated_at' in item and item['updated_at'] is not None:
-                item['updated_at'] = item['updated_at'].isoformat()
-            formatted_employees.append(item)
+        for item in employees:
+            emp = item.copy()
+            if 'salary' in emp and emp['salary'] is not None:
+                emp['salary'] = str(emp['salary'])
+            if 'hire_date' in emp and emp['hire_date'] is not None:
+                emp['hire_date'] = emp['hire_date'].isoformat()
+            if 'created_at' in emp and emp['created_at'] is not None:
+                emp['created_at'] = emp['created_at'].isoformat()
+            if 'updated_at' in emp and emp['updated_at'] is not None:
+                emp['updated_at'] = emp['updated_at'].isoformat()
+            formatted_employees.append(emp)
 
         return jsonify(formatted_employees), 200
     except Exception as e:
@@ -703,22 +782,21 @@ def get_all_employees():
 
 # --- NEW: API Endpoint: Create Employee ---
 @app.route('/api/employees', methods=['POST'])
-def create_employee():
+@token_required
+def create_employee(current_user):
     """
-    Creates a new employee in the 'employees' table.
-    Expects JSON with 'restaurant_id', 'full_name', 'position', 'phone_number', 'salary', 'hire_date'.
-    'email' is removed as per user request.
+    Creates a new employee in the logged-in user's restaurant.
+    Expects JSON with 'full_name', 'position', 'phone_number', 'salary', 'hire_date'.
     """
     data = request.get_json()
-    restaurant_id = data.get('restaurant_id')
     full_name = data.get('full_name')
     position = data.get('position')
     phone_number = data.get('phone_number')
     salary = data.get('salary')
     hire_date_str = data.get('hire_date')
 
-    if not restaurant_id or not full_name or not position or salary is None or not hire_date_str:
-        return jsonify({"error": "Missing required employee data: restaurant_id, full_name, position, salary, hire_date"}), 400
+    if not full_name or not position or salary is None or not hire_date_str:
+        return jsonify({"error": "Missing required employee data: full_name, position, salary, hire_date"}), 400
 
     conn = None
     cursor = None
@@ -733,7 +811,7 @@ def create_employee():
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         params = (
-            restaurant_id, full_name, position, phone_number, salary, hire_date,
+            current_user["restaurant_id"], full_name, position, phone_number, salary, hire_date,
             current_time, current_time
         )
         cursor.execute(sql, params)
@@ -751,13 +829,14 @@ def create_employee():
         if conn:
             conn.close()
 
+
 # --- NEW: API Endpoint: Update Employee ---
 @app.route('/api/employees/<int:employee_id>', methods=['PUT', 'PATCH'])
-def update_employee(employee_id):
+@token_required
+def update_employee(current_user, employee_id):
     """
-    Updates an existing employee in the 'employees' table.
+    Updates an existing employee in the logged-in user's restaurant.
     Expects JSON with fields to update.
-    'email' is removed from updatable fields as per user request.
     """
     data = request.get_json()
     if not data:
@@ -767,12 +846,20 @@ def update_employee(employee_id):
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
+        # ตรวจสอบว่าพนักงานอยู่ในร้านเดียวกันกับผู้ใช้งาน
+        cursor.execute("SELECT restaurant_id FROM employees WHERE id = %s", (employee_id,))
+        emp = cursor.fetchone()
+        if not emp:
+            return jsonify({"message": "Employee not found"}), 404
+        if emp['restaurant_id'] != current_user['restaurant_id']:
+            return jsonify({"error": "Unauthorized: cannot modify employee of another restaurant"}), 403
+
+        # Build update query
         set_clauses = []
         params = []
         current_time = datetime.now()
-
         for key, value in data.items():
             if key in ['full_name', 'position', 'phone_number']:
                 set_clauses.append(f"{key} = %s")
@@ -784,7 +871,7 @@ def update_employee(employee_id):
                 set_clauses.append(f"{key} = %s")
                 params.append(datetime.strptime(value, '%Y-%m-%d').date())
 
-        set_clauses.append("updated_at = %s") # Always update updated_at
+        set_clauses.append("updated_at = %s")
         params.append(current_time)
 
         if not set_clauses:
@@ -792,12 +879,9 @@ def update_employee(employee_id):
 
         sql = f"UPDATE employees SET {', '.join(set_clauses)} WHERE id = %s"
         params.append(employee_id)
-
         cursor.execute(sql, params)
         conn.commit()
 
-        if cursor.rowcount == 0:
-            return jsonify({"message": "Employee not found or no changes made"}), 404
         return jsonify({"message": "Employee updated successfully"}), 200
     except Exception as e:
         if conn:
@@ -810,23 +894,30 @@ def update_employee(employee_id):
         if conn:
             conn.close()
 
+
 # --- NEW: API Endpoint: Delete Employee ---
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE'])
-def delete_employee(employee_id):
+@token_required
+def delete_employee(current_user, employee_id):
     """
-    Deletes an employee from the 'employees' table.
+    Deletes an employee from the logged-in user's restaurant.
     """
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "DELETE FROM employees WHERE id = %s"
-        cursor.execute(sql, (employee_id,))
-        conn.commit()
+        cursor = conn.cursor(dictionary=True)
 
-        if cursor.rowcount == 0:
+        # ตรวจสอบว่าพนักงานอยู่ในร้านเดียวกัน
+        cursor.execute("SELECT restaurant_id FROM employees WHERE id = %s", (employee_id,))
+        emp = cursor.fetchone()
+        if not emp:
             return jsonify({"message": "Employee not found"}), 404
+        if emp['restaurant_id'] != current_user['restaurant_id']:
+            return jsonify({"error": "Unauthorized: cannot delete employee of another restaurant"}), 403
+
+        cursor.execute("DELETE FROM employees WHERE id = %s", (employee_id,))
+        conn.commit()
         return jsonify({"message": "Employee deleted successfully"}), 200
     except Exception as e:
         if conn:
@@ -839,32 +930,48 @@ def delete_employee(employee_id):
         if conn:
             conn.close()
 
-
-# --- API Endpoint: Get Dashboard Data ---
+# --- NEW: API Endpoint: Admin Dashboard ---
 @app.route('/api/admin/dashboard', methods=['GET'])
-def get_dashboard():
+@token_required
+def get_dashboard(current_user):
     """
-    Fetches all dashboard data (total sales, top products, sales by category) for a given month.
-    Requires a 'month' query parameter in 'YYYY-MM' format.
+    Fetches all dashboard data (total sales, top products, sales by category) 
+    for the logged-in user's restaurant.
     """
     conn = None
     cursor = None
     try:
+        # --- Get restaurant_id from current_user ---
+        restaurant_id = current_user.get('restaurant_id')
+        if not restaurant_id:
+            return jsonify({"error": "No restaurant_id found for user"}), 401
+
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # 1. Get Total Sales for the month
-        sql_total_sales = """
+        # --- Optional: filter by month ---
+        month_str = request.args.get('month')  # 'YYYY-MM'
+        month_filter = ""
+        params = [restaurant_id]
+
+        if month_str:
+            month_filter = " AND DATE_FORMAT(o.created_at, '%Y-%m') = %s"
+            params.append(month_str)
+
+        # 1. Total Sales
+        sql_total_sales = f"""
             SELECT SUM(total_amount) AS total_sales
-            FROM orders
-            WHERE payment_status = 'paid'
+            FROM orders o
+            WHERE o.restaurant_id = %s
+              AND o.payment_status = 'paid'
+              {month_filter}
         """
-        cursor.execute(sql_total_sales)
+        cursor.execute(sql_total_sales, params)
         total_sales_result = cursor.fetchone()
         total_sales = float(total_sales_result['total_sales']) if total_sales_result and total_sales_result['total_sales'] is not None else 0.0
 
-        # 2. Get Top 5 Selling Products for the month
-        sql_top_items = """
+        # 2. Top 5 Selling Products
+        sql_top_items = f"""
             SELECT
                 m.name,
                 SUM(oi.quantity) AS total_quantity,
@@ -872,28 +979,32 @@ def get_dashboard():
             FROM order_items oi
             JOIN orders o ON oi.order_id = o.id
             JOIN menus m ON oi.menu_id = m.id
-            WHERE o.payment_status = 'paid'
+            WHERE o.restaurant_id = %s
+              AND o.payment_status = 'paid'
+              {month_filter}
             GROUP BY m.name
             ORDER BY total_quantity DESC
             LIMIT 5
         """
-        cursor.execute(sql_top_items)
+        cursor.execute(sql_top_items, params)
         top_items = cursor.fetchall()
 
-        # 3. Get Sales by Category for the month
-        sql_category_sales = """
+        # 3. Sales by Category
+        sql_category_sales = f"""
             SELECT m.category, SUM(oi.quantity * oi.price_at_order) AS total_amount
             FROM order_items oi
             JOIN orders o ON oi.order_id = o.id
             JOIN menus m ON oi.menu_id = m.id
-            WHERE o.payment_status = 'paid'
+            WHERE o.restaurant_id = %s
+              AND o.payment_status = 'paid'
+              {month_filter}
             GROUP BY m.category
             ORDER BY total_amount DESC
         """
-        cursor.execute(sql_category_sales)
+        cursor.execute(sql_category_sales, params)
         category_sales = cursor.fetchall()
 
-        # Convert Decimal values to float for JSON serialization
+        # Convert Decimal to float
         for item in top_items:
             item['total_amount'] = float(item['total_amount'])
         for item in category_sales:
@@ -913,6 +1024,7 @@ def get_dashboard():
             cursor.close()
         if conn:
             conn.close()
+
 
 
 if __name__ == '__main__':

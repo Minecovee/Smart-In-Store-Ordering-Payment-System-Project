@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/authStore";
 
 interface Employee {
   id: number;
@@ -13,44 +15,59 @@ interface Employee {
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({ restaurant_id: 1 });
+  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editedEmployee, setEditedEmployee] = useState<Partial<Employee>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
+  const navigate = useNavigate(); 
+  const logout = useAuthStore((state) => state.logout);
+
+  const jwtToken = localStorage.getItem("jwtToken");
+
+  // --- Fetch employees ---
   const fetchEmployees = () => {
-    fetch('http://localhost:5000/api/employees')
+    fetch('http://localhost:5000/api/employees', {
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    })
       .then(res => res.json())
-      .then(data => setEmployees(data));
+      .then(data => setEmployees(data))
+      .catch(err => console.error("Failed to fetch employees:", err));
   };
 
   useEffect(() => { fetchEmployees(); }, []);
 
+  // --- Create Employee ---
   const createEmployee = () => {
-    // Check if the required fields are not empty
     if (!newEmployee.full_name || !newEmployee.position || !newEmployee.salary) {
       setValidationMessage("กรุณากรอกข้อมูลให้ครบถ้วน: ชื่อเต็ม, ตำแหน่ง และเงินเดือน");
       return;
     }
-
-    // Clear any previous validation message
     setValidationMessage(null);
-
     const currentISODate = new Date().toISOString().split('T')[0];
 
-    // Add hire_date and restaurant_id to the newEmployee object and send it to the API
     fetch('http://localhost:5000/api/employees', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newEmployee, hire_date: currentISODate })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
+      body: JSON.stringify({ 
+        full_name: newEmployee.full_name,
+        position: newEmployee.position,
+        phone_number: newEmployee.phone_number,
+        salary: newEmployee.salary,
+        hire_date: currentISODate
+      })
     }).then(() => { 
       fetchEmployees(); 
-      setNewEmployee({ restaurant_id: 1 }); // Reset all fields and keep default ID
+      setNewEmployee({});
     });
   };
 
+  // --- Edit Employee ---
   const handleEditClick = (employee: Employee) => {
     setEditingId(employee.id);
     setEditedEmployee(employee);
@@ -59,7 +76,10 @@ export default function EmployeesPage() {
   const saveEditedEmployee = () => {
     fetch(`http://localhost:5000/api/employees/${editingId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtToken}`
+      },
       body: JSON.stringify(editedEmployee)
     }).then(() => {
       setEditingId(null);
@@ -68,9 +88,12 @@ export default function EmployeesPage() {
     });
   };
 
+  // --- Delete Employee ---
   const deleteEmployee = (id: number) => {
-    fetch(`http://localhost:5000/api/employees/${id}`, { method: 'DELETE' })
-      .then(() => fetchEmployees());
+    fetch(`http://localhost:5000/api/employees/${id}`, { 
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${jwtToken}` }
+    }).then(() => fetchEmployees());
   };
   
   const handleDeleteClick = (employee: Employee) => {
@@ -91,139 +114,149 @@ export default function EmployeesPage() {
     setEmployeeToDelete(null);
   };
 
+  // --- Logout ---
+  const handleLogout = () => {
+    localStorage.removeItem("jwtToken");
+    localStorage.removeItem("username");
+    localStorage.removeItem("role");
+    logout(); 
+    navigate("/login");
+  };
+
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">จัดการข้อมูลพนักงาน</h1>
-
-      <div className="mb-4">
-        <input
-          placeholder="ชื่อเต็ม" className="border p-2 mr-2"
-          value={newEmployee.full_name || ''} onChange={e => setNewEmployee({ ...newEmployee, full_name: e.target.value })}
-        />
-        <input
-          placeholder="ตำแหน่ง" className="border p-2 mr-2"
-          value={newEmployee.position || ''} onChange={e => setNewEmployee({ ...newEmployee, position: e.target.value })}
-        />
-        <input
-          placeholder="เบอร์โทร" className="border p-2 mr-2"
-          value={newEmployee.phone_number || ''} onChange={e => setNewEmployee({ ...newEmployee, phone_number: e.target.value })}
-        />
-        <input
-          placeholder="เงินเดือน" className="border p-2 mr-2"
-          value={newEmployee.salary || ''} onChange={e => setNewEmployee({ ...newEmployee, salary: e.target.value })}
-        />
-        <input
-          placeholder="รหัสร้านอาหาร" className="border p-2 mr-2"
-          value={newEmployee.restaurant_id || ''} readOnly
-        />
-        <button onClick={createEmployee} className="bg-blue-500 text-white px-3 py-2 rounded">สร้าง</button>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">👨‍🍳 จัดการข้อมูลพนักงาน</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+        >
+          Logout
+        </button>
       </div>
-      
-      <table className="w-full table-auto border">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="py-3 px-6 text-left">รหัสพนักงาน</th>
-            <th className="py-3 px-6 text-left">ชื่อเต็ม</th>
-            <th className="py-3 px-6 text-left">ตำแหน่ง</th>
-            <th className="py-3 px-6 text-left">เงินเดือน</th>
-            <th className="py-3 px-6 text-left">เบอร์โทร</th>
-            <th className="py-3 px-6 text-left">วันที่เริ่มงาน</th>
-            <th className="py-3 px-6 text-left">รหัสร้านอาหาร</th>
-            <th className="py-3 px-6 text-left">การดำเนินการ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {employees.map(emp => (
-            <tr key={emp.id} className="border-b">
-              <td className="py-3 px-6 text-left whitespace-nowrap">{emp.id}</td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input value={editedEmployee.full_name || ''} onChange={e => setEditedEmployee({ ...editedEmployee, full_name: e.target.value })} className="border p-1 w-full" />
-                ) : (
-                  emp.full_name
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input value={editedEmployee.position || ''} onChange={e => setEditedEmployee({ ...editedEmployee, position: e.target.value })} className="border p-1 w-full" />
-                ) : (
-                  emp.position
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input value={editedEmployee.salary || ''} onChange={e => setEditedEmployee({ ...editedEmployee, salary: e.target.value })} className="border p-1 w-full" />
-                ) : (
-                  emp.salary
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input value={editedEmployee.phone_number || ''} onChange={e => setEditedEmployee({ ...editedEmployee, phone_number: e.target.value })} className="border p-1 w-full" />
-                ) : (
-                  emp.phone_number
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input type="date" value={editedEmployee.hire_date || ''} onChange={e => setEditedEmployee({ ...editedEmployee, hire_date: e.target.value })} className="border p-1 w-full" />
-                ) : (
-                  emp.hire_date
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <input value={editedEmployee.restaurant_id || ''} className="border p-1 w-full bg-gray-200" readOnly />
-                ) : (
-                  emp.restaurant_id
-                )}
-              </td>
-              <td className="py-3 px-6 text-left">
-                {editingId === emp.id ? (
-                  <button
-                    className="bg-green-500 text-white px-2 py-1 rounded mr-2"
-                    onClick={saveEditedEmployee}
-                  >
-                    บันทึก
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      className="bg-yellow-400 text-white px-2 py-1 rounded mr-2"
-                      onClick={() => handleEditClick(emp)}
-                    >
-                      แก้ไข
-                    </button>
-                    <button
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                      onClick={() => handleDeleteClick(emp)}
-                    >
-                      ลบ
-                    </button>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
 
-      {/* Confirmation Modal */}
+      {/* Form */}
+      <div className="bg-white shadow-md rounded-lg p-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          <input placeholder="ชื่อเต็ม" className="border p-2 rounded flex-1"
+            value={newEmployee.full_name || ''} 
+            onChange={e => setNewEmployee({ ...newEmployee, full_name: e.target.value })} />
+          <input placeholder="ตำแหน่ง" className="border p-2 rounded flex-1"
+            value={newEmployee.position || ''} 
+            onChange={e => setNewEmployee({ ...newEmployee, position: e.target.value })} />
+          <input placeholder="เบอร์โทร" className="border p-2 rounded flex-1"
+            value={newEmployee.phone_number || ''} 
+            onChange={e => setNewEmployee({ ...newEmployee, phone_number: e.target.value })} />
+          <input placeholder="เงินเดือน" className="border p-2 rounded flex-1"
+            value={newEmployee.salary || ''} 
+            onChange={e => setNewEmployee({ ...newEmployee, salary: e.target.value })} />
+          <button onClick={createEmployee} 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+            ➕ สร้าง
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="w-full table-auto">
+          <thead>
+            <tr className="bg-gray-200 text-left">
+              <th className="py-3 px-4">รหัส</th>
+              <th className="py-3 px-4">ชื่อเต็ม</th>
+              <th className="py-3 px-4">ตำแหน่ง</th>
+              <th className="py-3 px-4">เงินเดือน</th>
+              <th className="py-3 px-4">เบอร์โทร</th>
+              <th className="py-3 px-4">วันที่เริ่มงาน</th>
+              <th className="py-3 px-4">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map(emp => (
+              <tr key={emp.id} className="border-t odd:bg-white even:bg-gray-50">
+                <td className="py-3 px-4">{emp.id}</td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <input value={editedEmployee.full_name || ''} 
+                      onChange={e => setEditedEmployee({ ...editedEmployee, full_name: e.target.value })} 
+                      className="border p-1 w-full rounded" />
+                  ) : emp.full_name}
+                </td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <input value={editedEmployee.position || ''} 
+                      onChange={e => setEditedEmployee({ ...editedEmployee, position: e.target.value })} 
+                      className="border p-1 w-full rounded" />
+                  ) : emp.position}
+                </td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <input value={editedEmployee.salary || ''} 
+                      onChange={e => setEditedEmployee({ ...editedEmployee, salary: e.target.value })} 
+                      className="border p-1 w-full rounded" />
+                  ) : emp.salary}
+                </td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <input value={editedEmployee.phone_number || ''} 
+                      onChange={e => setEditedEmployee({ ...editedEmployee, phone_number: e.target.value })} 
+                      className="border p-1 w-full rounded" />
+                  ) : emp.phone_number}
+                </td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <input type="date" value={editedEmployee.hire_date || ''} 
+                      onChange={e => setEditedEmployee({ ...editedEmployee, hire_date: e.target.value })} 
+                      className="border p-1 w-full rounded" />
+                  ) : emp.hire_date}
+                </td>
+                <td className="py-3 px-4">
+                  {editingId === emp.id ? (
+                    <button
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm"
+                      onClick={saveEditedEmployee}
+                    >
+                      💾 บันทึก
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm"
+                        onClick={() => handleEditClick(emp)}
+                      >
+                        ✏️ แก้ไข
+                      </button>
+                      <button
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm"
+                        onClick={() => handleDeleteClick(emp)}
+                      >
+                        🗑️ ลบ
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Confirm Delete Modal */}
       {confirmDeleteId && employeeToDelete && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center">
-          <div className="bg-white p-5 rounded-lg shadow-xl max-w-sm mx-auto">
-            <h3 className="text-lg font-bold">ยืนยันการลบ</h3>
-            <p className="my-4">คุณแน่ใจหรือไม่ที่จะลบพนักงาน "{employeeToDelete.full_name}"?</p>
-            <div className="flex justify-end space-x-4">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-2">ยืนยันการลบ</h3>
+            <p className="mb-4">คุณแน่ใจหรือไม่ที่จะลบพนักงาน <b>{employeeToDelete.full_name}</b>?</p>
+            <div className="flex justify-end gap-3">
               <button
                 onClick={handleCancelDelete}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg"
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
               >
                 ยืนยัน
               </button>
@@ -232,16 +265,16 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Validation Message Modal */}
+      {/* Validation Modal */}
       {validationMessage && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center">
-          <div className="bg-white p-5 rounded-lg shadow-xl max-w-sm mx-auto">
-            <h3 className="text-lg font-bold">ข้อผิดพลาด</h3>
-            <p className="my-4">{validationMessage}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-2">ข้อผิดพลาด</h3>
+            <p className="mb-4">{validationMessage}</p>
             <div className="flex justify-end">
               <button
                 onClick={() => setValidationMessage(null)}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
               >
                 ปิด
               </button>

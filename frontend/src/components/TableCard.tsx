@@ -1,14 +1,14 @@
 // components/TableCard.tsx
-import type { TableInfo } from "../controllers/TableControllers"; // หรือ path จริงของ TableInfo
+import type { TableInfo } from "../customer/controllers/TableControllers"; // หรือ path จริงของ TableInfo
 
 interface Props {
   table: TableInfo;
   onToggle: (id: number) => void;
+  isSelected?: boolean; // เพิ่ม prop isSelected
   userType?: string;
 }
 
-export default function TableCard({ table, onToggle, userType }: Props) {
-  const isSelected = table.selected
+export default function TableCard({ table, onToggle, userType, isSelected=false}: Props) {
   const isFree = table.status === "free";
   return (
     <button
