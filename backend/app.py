@@ -39,7 +39,7 @@ def get_db_connection():
         conn = mysql.connector.connect(
             host=os.getenv("DB_HOST", "localhost"),
             user=os.getenv("DB_USER", "root"),
-            password=os.getenv("DB_PASSWORD", "123456"),
+            password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", "food_shopdb"),
             port=int(os.getenv("DB_PORT", 3306)),
             charset='utf8mb4'
@@ -613,12 +613,13 @@ def update_order(current_user, order_id):
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)  # เปลี่ยนเป็น dictionary=True
         restaurant_id = current_user["restaurant_id"]
 
-        # ตรวจสอบว่า order เป็นของร้านนี้
+        # ตรวจสอบว่า order เป็นของร้านนี้ และ FETCH ผลลัพธ์
         cursor.execute("SELECT id FROM orders WHERE id=%s AND restaurant_id=%s", (order_id, restaurant_id))
-        if cursor.rowcount == 0:
+        existing_order = cursor.fetchone()  # เพิ่มบรรทัดนี้
+        if not existing_order:  # เปลี่ยนจาก cursor.rowcount
             return jsonify({"error": "Order not found or unauthorized"}), 404
 
         set_clauses = []
@@ -639,21 +640,21 @@ def update_order(current_user, order_id):
                 set_clauses.append(f"{key}=%s")
                 params.append(value)
 
-        set_clauses.append("updated_at=%s")
-        params.append(current_time)
-        params.append(order_id)
-
-        if not set_clauses:
+        if not set_clauses:  # ย้ายขึ้นมาก่อน update
             return jsonify({"message": "No valid fields provided for update"}), 200
 
+        set_clauses.append("updated_at=%s")
+        params.append(current_time)
+        params.extend([order_id, restaurant_id])
+
         sql = f"UPDATE orders SET {', '.join(set_clauses)} WHERE id=%s AND restaurant_id=%s"
-        params.append(restaurant_id)
         cursor.execute(sql, params)
         conn.commit()
 
         if cursor.rowcount == 0:
             return jsonify({"message": "No changes made"}), 404
         return jsonify({"message": "Order updated successfully"}), 200
+        
     except Exception as e:
         if conn:
             conn.rollback()
