@@ -131,7 +131,7 @@ export default function PaymentPage() {
 
         <div className="mb-8 text-center">
           <p className="text-lg font-medium">ยอดชำระทั้งหมด</p>
-          <p className="text-3xl font-extrabold text-green-600 mt-2">
+          <p className="text-3xl font-extrabold text-green-800 mt-2">
             ฿{totalAmountNumber.toFixed(2)}
           </p>
         </div>
@@ -139,54 +139,59 @@ export default function PaymentPage() {
         <div className="grid grid-cols-1 gap-6">
           {/* QR Code */}
           <div
-            className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition
-              ${method === "qrcode"
-                ? "border-green-500 bg-green-50 shadow-md"
-                : "border-gray-300 hover:border-green-400 hover:shadow-sm"
+            className={`flex items-center p-4 border-2 rounded-sm cursor-pointer transition-all transform
+      ${method === "qrcode"
+                ? "border-gray-600 bg-gray-50 shadow-md scale-[1.02]"
+                : "border-gray-300 hover:border-gray-200 hover:shadow-sm hover:scale-[1.01]"
               }`}
             onClick={() => setMethod("qrcode")}
           >
             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4
-              ${method === "qrcode" ? "border-green-500" : "border-gray-400"}`}>
+      ${method === "qrcode" ? "border-gray-500" : "border-gray-400"}`}>
               {method === "qrcode" && (
-                <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+                <div className="w-2.5 h-2.5 bg-gray-600 rounded-full"></div>
               )}
             </div>
-            <div className="flex-1 text-center">
+
+            {/* ✅ รูปและชื่ออยู่ในแนวนอนเดียวกัน */}
+            <div className="flex items-center gap-3">
               <img
                 src="https://www.bot.or.th/content/dam/bot/icons/icon-thaiqr.png"
                 alt="QR Code"
-                className="mx-auto mb-2 w-32 h-32 object-cover"
+                className="w-10 h-10 object-contain"
               />
-              <p className="font-semibold">QR Code (PromptPay)</p>
+              <p className="font-regular text-lg">QR พร้อมเพย์</p>
             </div>
           </div>
 
           {/* Cash */}
           <div
-            className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition
-              ${method === "cash"
-                ? "border-green-500 bg-green-50 shadow-md"
-                : "border-gray-300 hover:border-green-400 hover:shadow-sm"
+            className={`flex items-center p-4 border-2 rounded-sm cursor-pointer transition-all
+      ${method === "cash"
+                ? "border-gray-600 bg-gray-50 shadow-md scale-[1.02]"
+                : "border-gray-300 hover:border-gray-200 hover:shadow-sm hover:scale-[1.01]"
               }`}
             onClick={() => setMethod("cash")}
           >
             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4
-              ${method === "cash" ? "border-green-500" : "border-gray-400"}`}>
+      ${method === "cash" ? "border-gray-500" : "border-gray-400"}`}>
               {method === "cash" && (
-                <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
+                <div className="w-2.5 h-2.5 bg-gray-600 rounded-full"></div>
               )}
             </div>
-            <div className="flex-1 text-center">
+
+            {/* ✅ รูปและชื่ออยู่ในแนวนอนเดียวกัน */}
+            <div className="flex items-center gap-3">
               <img
                 src="https://static.vecteezy.com/system/resources/previews/040/137/950/non_2x/minimalist-money-logo-design-template-cash-money-for-business-finance-money-investing-logo-vector.jpg"
                 alt="Cash"
-                className="mx-auto mb-2 w-32 h-32 object-cover"
+                className="w-10 h-10 object-contain rounded-md"
               />
-              <p className="font-semibold">เงินสด</p>
+              <p className="font-regular text-lg">เงินสด</p>
             </div>
           </div>
         </div>
+
 
         <div className="mt-8 flex justify-center gap-6">
           <button
@@ -198,11 +203,10 @@ export default function PaymentPage() {
           <button
             disabled={!method}
             onClick={confirmPayment}
-            className={`px-6 py-3 rounded-xl font-medium transition ${
-              method
-                ? "bg-green-500 text-white hover:bg-green-700"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
+            className={`px-6 py-3 rounded-xl font-medium transition ${method
+              ? "bg-gray-500 text-white hover:bg-gray-700"
+              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
           >
             ชำระเงิน
           </button>
@@ -223,7 +227,7 @@ export default function PaymentPage() {
               className="mx-auto mb-4 w-48 h-48 object-cover"
             />
             <button
-              className="px-6 py-2 bg-green-500 text-white rounded-xl hover:bg-green-700 transition"
+              className="px-6 py-2 bg-gray-500 text-white rounded-xl hover:bg-gray-700 transition"
               onClick={() => setShowQrPopup(false)}
             >
               ปิด

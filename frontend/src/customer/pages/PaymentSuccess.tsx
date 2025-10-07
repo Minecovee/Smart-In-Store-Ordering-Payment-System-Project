@@ -1,38 +1,55 @@
 import React from 'react';
-import { Button, Typography, Box, Container } from '@mui/material';
+import { Button, Typography, Box, Container, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-
+import "../../PaymentSuccess.css";
 const PaymentSuccess: React.FC = () => {
     const navigate = useNavigate();
 
     const handleGoHome = () => {
-        navigate('/'); // กลับไปหน้าแรกของร้านอาหาร
+        navigate('/');
     };
 
     return (
-        <Container maxWidth="sm" sx={{ textAlign: 'center', mt: 8 }}>
-            <Box>
-                <img 
-                    src="https://cdn-icons-png.flaticon.com/512/845/845646.png" 
-                    alt="success" 
-                    style={{ width: 80, height: 80, marginBottom: 16 }} 
-                />
+        <Container maxWidth="sm" sx={{ mt: 10 }}>
+            <Paper
+                elevation={4}
+                sx={{
+                    p: 5,
+                    textAlign: 'center',
+                    borderRadius: 4,
+                    backgroundColor: '#F2F0EF',
+                }}
+            >
+                {/* วงกลม checkmark พร้อมแอนิเมชัน */}
+                <Box sx={{ position: 'relative', display: 'inline-block', mb: 3 }}>
+                    <span className="checkmark"></span>
+                </Box>
 
-                <Typography variant="h4" gutterBottom>
-                    ชำระเงินสำเร็จ!
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2e7d32', mb: 2 }}>
+                    ชำระเงินสำเร็จ
                 </Typography>
-                <Typography variant="subtitle1" gutterBottom>
-                    ขอบคุณที่ใช้บริการ ร้านอาหารของคุณได้รับการอัปเดตการชำระเงินเรียบร้อยแล้ว
+
+                <Typography variant="body1" sx={{ color: '#555', mb: 4 }}>
+                    ขอบคุณที่ใช้บริการ ระบบได้บันทึกการชำระเงินของคุณเรียบร้อยแล้ว
                 </Typography>
+
                 <Button
                     variant="contained"
-                    color="primary"
-                    sx={{ mt: 4 }}
+                    sx={{
+                        backgroundColor: '#4caf50',
+                        '&:hover': { backgroundColor: '#43a047' },
+                        px: 4,
+                        py: 1.5,
+                        fontWeight: 'bold',
+                        borderRadius: '30px',
+                    }}
                     onClick={handleGoHome}
                 >
                     กลับไปหน้าหลัก
                 </Button>
-            </Box>
+            </Paper>
+
+
         </Container>
     );
 };
