@@ -86,7 +86,7 @@ export default function OrdersPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-extrabold text-gray-800">📦 Orders</h1>
+        <h1 className="text-4xl font-extrabold text-gray-800"> Orders</h1>
         <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Logout</button>
       </div>
 
@@ -109,7 +109,7 @@ export default function OrdersPage() {
               <p className="text-sm text-gray-600 mb-4">การชำระเงิน: <span className={`ml-2 px-2 py-1 rounded text-xs ${order.payment_status === 'paid' ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'}`}>{order.payment_status}</span></p>
 
               <div className="flex justify-between items-center">
-                {order.status === 'pending' && <button className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors" onClick={() => handleViewItems(order)}>ดูรายละเอียด</button>}
+                {order.status === 'pending' && <button className="bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors" onClick={() => handleViewItems(order)}>ดูรายละเอียด</button>}
               </div>
             </div>
           ))}
@@ -156,8 +156,8 @@ export default function OrdersPage() {
             <div className="flex justify-end mt-6 space-x-2">
               {selectedOrder.status === 'pending' && (
                 <>
-                  <button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600" onClick={() => handleActionClick(selectedOrder, 'completed')}>✅ เสร็จสิ้น</button>
-                  <button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600" onClick={() => handleActionClick(selectedOrder, 'cancelled')}>❌ ยกเลิก</button>
+                  <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-600" onClick={() => handleActionClick(selectedOrder, 'completed')}> เสร็จสิ้น</button>
+                  <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-600" onClick={() => handleActionClick(selectedOrder, 'cancelled')}> ยกเลิก</button>
                 </>
               )}
               <button className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500" onClick={handleCloseItemsModal}>ปิด</button>

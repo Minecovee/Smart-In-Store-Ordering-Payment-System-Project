@@ -65,6 +65,17 @@ export default function App() {
     setInitialized(true);
   }, [setAuth]);
 
+  /*useEffect(() => {
+  // เคลียร์ข้อมูล auth เก่าทุกครั้งเมื่อเริ่มระบบ
+  localStorage.removeItem("jwtToken");
+  localStorage.removeItem("username");
+
+  // เซ็ต state ให้โหลดเสร็จ
+  setAuth("", "", ""); // รีเซ็ต state ของ auth ด้วย
+  setInitialized(true);
+}, [setAuth]);
+*/
+
   if (!initialized) return <div>Loading...</div>;
 
   return (

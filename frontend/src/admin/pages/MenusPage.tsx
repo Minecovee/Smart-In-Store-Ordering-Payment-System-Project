@@ -24,7 +24,7 @@ export default function MenusPage() {
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("jwtToken");
-    console.log("JWT Token from localStorage:", token); // 🔍 log token
+    console.log("JWT Token from localStorage:", token); //  log token
     return {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`,
@@ -169,9 +169,9 @@ export default function MenusPage() {
         />
         <button
           onClick={createMenu}
-          className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow hover:bg-blue-700 transition"
+          className="bg-blue-700 text-white px-5 py-2 rounded-lg shadow hover:bg-blue-700 transition"
         >
-          ➕ เพิ่มเมนู
+           เพิ่มเมนู
         </button>
       </div>
 
@@ -262,7 +262,7 @@ export default function MenusPage() {
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => handleEditClick(menu)}
-                        className="bg-yellow-400 text-white px-3 py-1 rounded-md hover:bg-yellow-500 transition w-20"
+                        className="bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-300 transition w-20"
                       >
                         แก้ไข
                       </button>

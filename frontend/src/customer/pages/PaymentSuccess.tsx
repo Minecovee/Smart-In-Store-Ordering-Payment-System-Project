@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Typography, Box, Container, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import "../../PaymentSuccess.css";
+import "../../css/PaymentSuccess.css";
 const PaymentSuccess: React.FC = () => {
     const navigate = useNavigate();
 

@@ -29,41 +29,54 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-4">Register</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-          className="w-full border p-2 rounded"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="w-full border p-2 rounded"
-        />
-        <input
-          type="email"
-          placeholder="Email (สำหรับร้านค้า)"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full border p-2 rounded"
-        />
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
-        >
-          Register
-        </button>
-      </form>
-      {message && <p className="mt-4 text-center">{message}</p>}
-    </div>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 font-sans text-gray-800">
+  <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6">
+    <h2 className="text-2xl font-bold mb-6 text-center text-[#FF6500]">Register</h2>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <input
+        type="text"
+        placeholder="Username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        required
+        className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6500] shadow-sm transition"
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6500] shadow-sm transition"
+      />
+      <input
+        type="email"
+        placeholder="Email (สำหรับร้านค้า)"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6500] shadow-sm transition"
+      />
+      <button
+        type="submit"
+        className="w-full bg-[#FF6500] hover:bg-[#FFA559] text-white py-2 rounded-xl font-semibold transition-colors"
+      >
+        Register
+      </button>
+    </form>
+    {message && <p className="mt-4 text-center text-gray-700">{message}</p>}
+
+    <p className="text-sm text-gray-600 mt-4 text-center">
+      มีบัญชีแล้ว?{" "}
+      <span
+        className="text-[#FF6500] cursor-pointer hover:underline"
+        onClick={() => navigate("/login")}
+      >
+        Login
+      </span>
+    </p>
+  </div>
+</div>
+
   );
 }

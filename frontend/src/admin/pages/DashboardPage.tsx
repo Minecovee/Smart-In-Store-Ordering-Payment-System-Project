@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom"; 
+import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import {
   Card,
@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   const [categorySales, setCategorySales] = useState<CategorySales[]>([]);
 
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
 
   const fetchDashboard = async () => {
@@ -82,25 +82,25 @@ export default function DashboardPage() {
     localStorage.removeItem("username");
     localStorage.removeItem("role");
 
-    logout(); 
+    logout();
     navigate("/login");
   };
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen font-sans text-gray-800">
       {/* Header + Logout */}
       <Flex justifyContent="between" alignItems="center" className="mb-4">
-        <Title className="text-2xl font-bold">📊 Dashboard</Title>
+        <Title className="text-2xl font-bold text-[#FF6500]">Dashboard</Title>
         <button
           onClick={handleLogout}
-          className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+          className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl shadow transition"
         >
           Logout
         </button>
       </Flex>
 
       {/* ยอดขายรวม */}
-      <Card className="bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-lg">
+      <Card className="bg-gradient-to-r from-[#FFB347] to-[#FF6500] text-white shadow-xl rounded-2xl p-4">
         <Flex justifyContent="between" alignItems="center">
           <div>
             <Title className="text-white">ยอดขายรวม</Title>
@@ -113,11 +113,12 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top 5 สินค้าขายดี */}
-        <Card className="shadow-md">
-          <Title>Top 5 สินค้าขายดี</Title>
+        <Card className="shadow-lg rounded-2xl p-4">
+          <Title className="text-lg font-semibold mb-2">Top 5 สินค้าขายดี</Title>
           <Table>
             <TableHead>
-              <TableRow>
+              <TableRow className="bg-[#FF6500]/20">
+                <TableHeaderCell>#</TableHeaderCell>
                 <TableHeaderCell>ชื่อสินค้า</TableHeaderCell>
                 <TableHeaderCell>จำนวนขาย</TableHeaderCell>
                 <TableHeaderCell>ยอดขายรวม</TableHeaderCell>
@@ -127,13 +128,18 @@ export default function DashboardPage() {
               {topItems.map((item, i) => (
                 <TableRow
                   key={item.name}
-                  className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}
+                  className={i % 2 === 0 ? "bg-white" : "bg-[#FFF5E6]"}
                 >
                   <TableCell>
                     <Flex alignItems="center" className="gap-2">
-                      <Badge color="emerald">{i + 1}</Badge>
-                      <Text>{item.name}</Text>
+                      {i + 1}
+                      
                     </Flex>
+                  </TableCell>
+                  <TableCell>
+                  
+                      <Text>{item.name}</Text>
+                    
                   </TableCell>
                   <TableCell>{item.total_quantity}</TableCell>
                   <TableCell>{item.total_amount.toLocaleString()} บาท</TableCell>
@@ -144,8 +150,8 @@ export default function DashboardPage() {
         </Card>
 
         {/* กราฟรายได้ตามประเภทเมนู */}
-        <Card className="shadow-md">
-          <Title>รายได้ตามประเภทเมนู</Title>
+        <Card className="shadow-lg rounded-2xl p-4">
+          <Title className="text-lg font-semibold mb-2">รายได้ตามประเภทเมนู</Title>
           <ResponsiveContainer width="100%" height={320}>
             <PieChart>
               <Pie
@@ -168,5 +174,6 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+
   );
 }

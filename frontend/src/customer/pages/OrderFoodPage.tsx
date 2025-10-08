@@ -134,32 +134,33 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 flex flex-col max-w-screen-lg mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 flex flex-col max-w-screen-lg mx-auto text-gray-900">
 
-  {/* ปุ่มย้อนกลับ */}
-  <button
-    onClick={() => navigate(-1)}
-    className="self-start mb-4 flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-  >
-    ← กลับ
-  </button>
+  {/* แถวบน สำหรับปุ่มย้อนกลับ + ปุ่ม Cart */}
+  <div className="flex justify-between items-start mb-4">
+    {/* ปุ่มย้อนกลับ */}
+    <button
+      onClick={() => navigate(-1)}
+      className="flex items-center gap-2 px-4 py-2 bg-[#FFB566] text-gray-100 rounded-lg hover:bg-[#FFA559] transition"
+    >
+      ← กลับ
+    </button>
 
-  {/* ปุ่ม Cart */}
-  <button
-    onClick={() => navigate(`/cart/${table_number}`)}
-    className="fixed top-4 right-4 sm:right-4 md:right-6 lg:right-8 flex items-center gap-2 
-               bg-blue-500 text-white px-4 py-2 sm:px-3 sm:py-1 sm:text-sm 
-               rounded-full shadow-lg hover:bg-blue-600 z-50"
-  >
-    <span>Cart</span>
-    {cart.length > 0 && (
-      <span className="bg-white text-blue-500 px-2 py-1 rounded-full text-sm font-semibold">
-        {cart.length}
-      </span>
-    )}
-  </button>
+    {/* ปุ่ม Cart */}
+    <button
+      onClick={() => navigate(`/cart/${table_number}`)}
+      className="flex items-center gap-2 bg-[#FF6500] text-gray-100 px-4 py-2 rounded-full shadow-lg hover:bg-[#FFA559] transition"
+    >
+      <span>Cart</span>
+      {cart.length > 0 && (
+        <span className="bg-[#1E3E62] text-[#FF6500] px-2 py-1 rounded-full text-sm font-semibold">
+          {cart.length}
+        </span>
+      )}
+    </button>
+  </div>
 
-  <h1 className="text-3xl font-bold text-center mb-6">
+  <h1 className="text-3xl font-bold text-center mb-6 text-[#FF6500]">
     สั่งอาหารสำหรับโต๊ะ #{table_number}
   </h1>
 
@@ -169,9 +170,9 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
       <button
         key={cat}
         className={`whitespace-nowrap px-5 py-2 rounded-full border ${selectedCategory === cat
-          ? "bg-blue-500 text-white"
-          : "bg-white text-gray-700 border-gray-300"
-        } hover:bg-blue-100 transition`}
+          ? "bg-[#FF6500] text-gray-900 border-[#FF6500]"
+          : "bg-[#1E3E62] text-gray-100 border-[#1E3E62]"
+          } hover:bg-[#FFA559] hover:border-[#FFA559] hover:text-gray-900 transition`}
         onClick={() => setSelectedCategory(cat)}
       >
         {cat}
@@ -179,7 +180,7 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
     ))}
   </div>
 
-  {/* แนวนอนลากได้ทั้ง container */}
+  {/* แนวนอนลากได้ */}
   <div
     ref={scrollRef}
     onMouseDown={handleMouseDown}
@@ -193,7 +194,7 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
         <div
           key={menu.id}
           onClick={() => handleCardClick(menu)}
-          className={`w-[150px] bg-white rounded-lg shadow-md hover:shadow-lg transition-transform transform relative flex-shrink-0 ${clickedMenuIds.includes(menu.id) ? "scale-105" : "hover:scale-105"}`}
+          className={`w-[150px] bg-[#FFA559] rounded-lg shadow-md hover:shadow-lg transition-transform transform relative flex-shrink-0 ${clickedMenuIds.includes(menu.id) ? "scale-105" : "hover:scale-105"}`}
         >
           <img
             src={menu.image_url || "https://via.placeholder.com/400x300"}
@@ -202,16 +203,16 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
             draggable={false}
           />
           <div className="p-2">
-            <h3 className="text-sm font-semibold text-gray-800 line-clamp-1">{menu.name}</h3>
-            <p className="text-gray-500 text-xs line-clamp-2">{menu.description}</p>
+            <h3 className="text-sm font-semibold text-gray-100 line-clamp-1">{menu.name}</h3>
+            <p className="text-gray-200 text-xs line-clamp-2">{menu.description}</p>
             <div className="mt-1 flex justify-between items-center min-w-[60px]">
-              <span className="text-sm font-bold text-blue-600 truncate">
+              <span className="text-sm font-bold text-[#26355D] truncate">
                 ฿{parseFloat(menu.base_price).toFixed(2)}
               </span>
             </div>
           </div>
           {clickedMenuIds.includes(menu.id) && (
-            <div className="absolute top-1 right-1 bg-green-500 text-white px-1 py-0.5 rounded animate-pulse text-xs">
+            <div className="absolute top-1 right-1 bg-[#FF6500] text-gray-900 px-1 py-0.5 rounded animate-pulse text-xs">
               เพิ่มแล้ว!
             </div>
           )}
@@ -219,8 +220,9 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
       ))}
     </div>
   </div>
-
 </div>
+
+
 
 
 

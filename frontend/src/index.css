@@ -17,3 +17,11 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background-color: #0B192C ; }
+
+  body {
+  font-family: 'Inter', sans-serif;
+}
