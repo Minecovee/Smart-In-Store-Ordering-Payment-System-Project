@@ -29,7 +29,11 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 font-sans text-gray-800">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 font-sans text-gray-800 bg-cover bg-center
+    " style={{
+        backgroundImage: "url('https://thumbs.dreamstime.com/b/thai-food-background-dishes-cuisine-tom-yum-soup-pad-noodles-fried-rice-pork-vegetables-khao-phat-mu-85688529.jpg')",
+      }}>
+      
   <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6">
     <h2 className="text-2xl font-bold mb-6 text-center text-[#FF6500]">Register</h2>
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">

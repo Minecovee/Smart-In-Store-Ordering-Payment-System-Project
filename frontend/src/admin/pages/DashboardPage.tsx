@@ -113,9 +113,9 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top 5 สินค้าขายดี */}
-        <Card className="shadow-lg rounded-2xl p-4">
-          <Title className="text-lg font-semibold mb-2">Top 5 สินค้าขายดี</Title>
-          <Table>
+        <Card className="shadow-lg rounded-2xl py-10 max-h-[400px] overflow-y-auto">
+          <Title className="text-lg font-semibold mb-2 text-center">Top 5 สินค้าขายดี</Title>
+          <Table className="min-w-full text-sm text-center align-middle">
             <TableHead>
               <TableRow className="bg-[#FF6500]/20">
                 <TableHeaderCell>#</TableHeaderCell>
@@ -128,26 +128,26 @@ export default function DashboardPage() {
               {topItems.map((item, i) => (
                 <TableRow
                   key={item.name}
-                  className={i % 2 === 0 ? "bg-white" : "bg-[#FFF5E6]"}
+                  className={`${i % 2 === 0 ? "bg-white" : "bg-[#FFF5E6]"} hover:bg-[#FFF0E0] transition`}
                 >
-                  <TableCell>
-                    <Flex alignItems="center" className="gap-2">
-                      {i + 1}
-                      
-                    </Flex>
+                  <TableCell className="text-center align-middle">
+                    {i + 1}
                   </TableCell>
-                  <TableCell>
-                  
-                      <Text>{item.name}</Text>
-                    
+                  <TableCell className="text-center align-middle">
+                    <Text className="truncate max-w-[150px] mx-auto">{item.name}</Text>
                   </TableCell>
-                  <TableCell>{item.total_quantity}</TableCell>
-                  <TableCell>{item.total_amount.toLocaleString()} บาท</TableCell>
+                  <TableCell className="text-center align-middle">
+                    {item.total_quantity}
+                  </TableCell>
+                  <TableCell className="text-center align-middle">
+                    {item.total_amount.toLocaleString()} บาท
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
+
 
         {/* กราฟรายได้ตามประเภทเมนู */}
         <Card className="shadow-lg rounded-2xl p-4">

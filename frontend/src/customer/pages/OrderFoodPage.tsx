@@ -141,7 +141,7 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
     {/* ปุ่มย้อนกลับ */}
     <button
       onClick={() => navigate(-1)}
-      className="flex items-center gap-2 px-4 py-2 bg-[#FFB566] text-gray-100 rounded-lg hover:bg-[#FFA559] transition"
+      className="flex items-center gap-2 px-4 py-2 bg-[#FFB566] text-gray-100 font-semibold rounded-lg hover:bg-[#FFA559] transition"
     >
       ← กลับ
     </button>
@@ -149,11 +149,11 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
     {/* ปุ่ม Cart */}
     <button
       onClick={() => navigate(`/cart/${table_number}`)}
-      className="flex items-center gap-2 bg-[#FF6500] text-gray-100 px-4 py-2 rounded-full shadow-lg hover:bg-[#FFA559] transition"
+      className="flex items-center gap-2 bg-[#FF6500] text-gray-100 font-semibold px-4 py-2 rounded-full shadow-lg hover:bg-[#FFA559] transition"
     >
       <span>Cart</span>
       {cart.length > 0 && (
-        <span className="bg-[#1E3E62] text-[#FF6500] px-2 py-1 rounded-full text-sm font-semibold">
+        <span className="bg-[#1E3E62] text-[#FF6500] px-2 py-1 rounded-full text-sm font-bold">
           {cart.length}
         </span>
       )}
@@ -170,8 +170,8 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
       <button
         key={cat}
         className={`whitespace-nowrap px-5 py-2 rounded-full border ${selectedCategory === cat
-          ? "bg-[#FF6500] text-gray-900 border-[#FF6500]"
-          : "bg-[#1E3E62] text-gray-100 border-[#1E3E62]"
+          ? "bg-[#FF6500] text-gray-900 font-bold border-[#FF6500]"
+          : "bg-[#1E3E62] text-gray-100 font-bold border-[#1E3E62]"
           } hover:bg-[#FFA559] hover:border-[#FFA559] hover:text-gray-900 transition`}
         onClick={() => setSelectedCategory(cat)}
       >
@@ -204,12 +204,12 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
           />
           <div className="p-2 flex-1 flex flex-col">
             <div>
-              <h3 className="text-sm font-semibold text-[#000000] line-clamp-1">{menu.name}</h3>
-              <p className="text-[#000000] text-xs line-clamp-2">{menu.description}</p>
+              <h3 className="text-sm font-bold text-[#000000] line-clamp-1">{menu.name}</h3>
+              <p className="text-[#000000] text-xs font-medium line-clamp-2">{menu.description}</p>
             </div>
             
             <div className="mt-auto flex justify-end">
-              <span className="text-sm font-bold text-[#26355D]">
+              <span className="text-sm font-extrabold text-[#26355D]">
                 ฿{parseFloat(menu.base_price).toFixed(2)}
               </span>
             </div>

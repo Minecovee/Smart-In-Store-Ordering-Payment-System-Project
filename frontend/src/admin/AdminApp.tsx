@@ -1,6 +1,12 @@
 'use client';
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 
 // Customer Pages
 import TableReservationPage from "../customer/pages/TableReservationPage";
@@ -27,34 +33,62 @@ interface CartItem {
   notes: string;
 }
 
-// Sidebar สำหรับ admin
+/* ─────────────────────────────
+   ✅ Sidebar Component (Admin)
+────────────────────────────── */
 function Sidebar() {
+  const location = useLocation();
+
+  const links = [
+    { name: "Dashboard", path: "/admin/dashboard" },
+    { name: "Orders", path: "/admin/orders" },
+    { name: "Employees", path: "/admin/employees" },
+    { name: "Menus", path: "/admin/menus" },
+  ];
+
   return (
-    <aside className="w-64 bg-gray-900 text-white p-4">
-      <h2 className="text-xl font-bold mb-6">Admin Panel</h2>
-      <nav className="flex flex-col gap-4">
-        <a href="/admin/dashboard">📊 Dashboard</a>
-        <a href="/admin/orders">🛒 Orders</a>
-        <a href="/admin/employees">👨‍🍳 Employees</a>
-        <a href="/admin/menus">🍽️ Menus</a>
+    <aside className="w-64 bg-[#0B192C] text-gray-100 min-h-screen p-6 shadow-lg">
+      <h2 className="text-2xl font-extrabold mb-8 text-center text-[#FF6500] tracking-wide">
+        Admin Panel
+      </h2>
+
+      <nav className="flex flex-col gap-2">
+        {links.map((link) => {
+          const isActive = location.pathname === link.path;
+          return (
+            <a
+              key={link.path}
+              href={link.path}
+              className={`px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
+                isActive
+                  ? "bg-[#FF6500] text-white shadow-md"
+                  : "text-gray-300 hover:bg-gray-800 hover:text-[#FF6500]"
+              }`}
+            >
+              {link.name}
+            </a>
+          );
+        })}
       </nav>
     </aside>
   );
 }
 
+/* ─────────────────────────────
+   ✅ Main App Component
+────────────────────────────── */
 export default function App() {
   const [initialized, setInitialized] = useState(false);
   const token = useAuthStore((state) => state.token);
   const username = useAuthStore((state) => state.username);
   const setAuth = useAuthStore((state) => state.setAuth);
 
-  const [cart, setCart] = useState<CartItem[]>([]); // Cart state สำหรับ customer
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const isLoggedIn = !!token;
   const isCustomer = username?.endsWith("User");
 
   useEffect(() => {
-    // โหลดค่า auth จาก localStorage
     const localToken = localStorage.getItem("jwtToken");
     const localUsername = localStorage.getItem("username");
 
@@ -65,33 +99,25 @@ export default function App() {
     setInitialized(true);
   }, [setAuth]);
 
-  /*useEffect(() => {
-  // เคลียร์ข้อมูล auth เก่าทุกครั้งเมื่อเริ่มระบบ
-  localStorage.removeItem("jwtToken");
-  localStorage.removeItem("username");
-
-  // เซ็ต state ให้โหลดเสร็จ
-  setAuth("", "", ""); // รีเซ็ต state ของ auth ด้วย
-  setInitialized(true);
-}, [setAuth]);
-*/
-
   if (!initialized) return <div>Loading...</div>;
 
   return (
     <Router>
-      <div className="flex min-h-screen">
-        {/* Sidebar เฉพาะ admin */}
+      <div className="flex min-h-screen bg-gray-100">
+        {/* 🧭 Sidebar เฉพาะ Admin */}
         {!isCustomer && isLoggedIn && <Sidebar />}
 
-        <main className="flex-1 p-6 bg-gray-100">
+        <main className="flex-1 overflow-y-auto">
           <Routes>
-            {/* Login/Register */}
+            {/* 🔐 Login / Register */}
             <Route
               path="/login"
               element={
                 isLoggedIn ? (
-                  <Navigate to={isCustomer ? "/" : "/admin/dashboard"} replace />
+                  <Navigate
+                    to={isCustomer ? "/" : "/admin/dashboard"}
+                    replace
+                  />
                 ) : (
                   <LoginPage />
                 )
@@ -101,25 +127,34 @@ export default function App() {
               path="/register"
               element={
                 isLoggedIn ? (
-                  <Navigate to={isCustomer ? "/" : "/admin/dashboard"} replace />
+                  <Navigate
+                    to={isCustomer ? "/" : "/admin/dashboard"}
+                    replace
+                  />
                 ) : (
                   <RegisterPage />
                 )
               }
             />
 
-            {/* Customer Routes */}
+            {/* 👨‍🍳 Customer Routes */}
             {isCustomer && isLoggedIn && (
               <>
                 <Route path="/" element={<TableReservationPage />} />
-                <Route path="/order/:table_number" element={<OrderFoodPage cart={cart} setCart={setCart} />} />
-                <Route path="/cart/:table_number" element={<CartPage cart={cart} setCart={setCart} />} />
+                <Route
+                  path="/order/:table_number"
+                  element={<OrderFoodPage cart={cart} setCart={setCart} />}
+                />
+                <Route
+                  path="/cart/:table_number"
+                  element={<CartPage cart={cart} setCart={setCart} />}
+                />
                 <Route path="/payment/:order_id" element={<PaymentMethod />} />
                 <Route path="/payment-success" element={<PaymentSuccess />} />
               </>
             )}
 
-            {/* Admin Routes */}
+            {/* 🧰 Admin Routes */}
             {!isCustomer && isLoggedIn && (
               <>
                 <Route path="/admin/dashboard" element={<DashboardPage />} />
@@ -129,12 +164,18 @@ export default function App() {
               </>
             )}
 
-            {/* Fallback */}
+            {/* 🚧 Fallback */}
             <Route
               path="*"
               element={
                 <Navigate
-                  to={isLoggedIn ? (isCustomer ? "/" : "/admin/dashboard") : "/login"}
+                  to={
+                    isLoggedIn
+                      ? isCustomer
+                        ? "/"
+                        : "/admin/dashboard"
+                      : "/login"
+                  }
                   replace
                 />
               }

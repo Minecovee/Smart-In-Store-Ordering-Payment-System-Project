@@ -107,7 +107,8 @@ export default function CartPage({ cart, setCart }: Props) {
     ตะกร้าสินค้า (โต๊ะ {parsedTableNumber})
   </h1>
 
-  <div className="max-w-3xl mx-auto bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+  <div className="w-full max-w-4xl mx-auto bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+
     {cart.length === 0 ? (
       <p className="text-gray-500 text-center py-12 text-lg">
         ตะกร้าว่างเปล่า
