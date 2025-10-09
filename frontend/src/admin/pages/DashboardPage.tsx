@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +23,7 @@ import {
   Cell,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from "recharts";
 
 interface TopItem {
@@ -57,8 +57,8 @@ export default function DashboardPage() {
 
       const res = await axios.get(`http://localhost:5000/api/admin/dashboard`, {
         headers: {
-          Authorization: `Bearer ${token}` // ✅ ส่ง token ให้ backend
-        }
+          Authorization: `Bearer ${token}`, // ✅ ส่ง token ให้ backend
+        },
       });
 
       setTotalSales(res.data.total_sales);
@@ -87,14 +87,15 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen font-sans text-gray-800">
+    <div
+      className="p-6 space-y-6 bg-gray-50 min-h-screen text-gray-800"
+      style={{ fontFamily: "Carlito, sans-serif" }}>
       {/* Header + Logout */}
       <Flex justifyContent="between" alignItems="center" className="mb-4">
         <Title className="text-2xl font-bold text-[#FF6500]">Dashboard</Title>
         <button
           onClick={handleLogout}
-          className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl shadow transition"
-        >
+          className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl shadow transition">
           Logout
         </button>
       </Flex>
@@ -114,7 +115,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top 5 สินค้าขายดี */}
         <Card className="shadow-lg rounded-2xl py-10 max-h-[400px] overflow-y-auto">
-          <Title className="text-lg font-semibold mb-2 text-center">Top 5 สินค้าขายดี</Title>
+          <Title className="text-lg font-semibold mb-2 text-center">
+            Top 5 สินค้าขายดี
+          </Title>
           <Table className="min-w-full text-sm text-center align-middle">
             <TableHead>
               <TableRow className="bg-[#FF6500]/20">
@@ -128,13 +131,16 @@ export default function DashboardPage() {
               {topItems.map((item, i) => (
                 <TableRow
                   key={item.name}
-                  className={`${i % 2 === 0 ? "bg-white" : "bg-[#FFF5E6]"} hover:bg-[#FFF0E0] transition`}
-                >
+                  className={`${
+                    i % 2 === 0 ? "bg-white" : "bg-[#FFF5E6]"
+                  } hover:bg-[#FFF0E0] transition`}>
                   <TableCell className="text-center align-middle">
                     {i + 1}
                   </TableCell>
                   <TableCell className="text-center align-middle">
-                    <Text className="truncate max-w-[150px] mx-auto">{item.name}</Text>
+                    <Text className="truncate max-w-[150px] mx-auto">
+                      {item.name}
+                    </Text>
                   </TableCell>
                   <TableCell className="text-center align-middle">
                     {item.total_quantity}
@@ -148,10 +154,11 @@ export default function DashboardPage() {
           </Table>
         </Card>
 
-
         {/* กราฟรายได้ตามประเภทเมนู */}
         <Card className="shadow-lg rounded-2xl p-4">
-          <Title className="text-lg font-semibold mb-2">รายได้ตามประเภทเมนู</Title>
+          <Title className="text-lg font-semibold mb-2">
+            รายได้ตามประเภทเมนู
+          </Title>
           <ResponsiveContainer width="100%" height={320}>
             <PieChart>
               <Pie
@@ -161,19 +168,22 @@ export default function DashboardPage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label
-              >
+                label>
                 {categorySales.map((entry, index) => (
-                  <Cell key={entry.category} fill={COLORS[index % COLORS.length]} />
+                  <Cell
+                    key={entry.category}
+                    fill={COLORS[index % COLORS.length]}
+                  />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => `${value.toLocaleString()} บาท`} />
+              <Tooltip
+                formatter={(value: number) => `${value.toLocaleString()} บาท`}
+              />
               <Legend verticalAlign="bottom" height={36} />
             </PieChart>
           </ResponsiveContainer>
         </Card>
       </div>
     </div>
-
   );
 }

@@ -104,12 +104,12 @@ export default function OrdersPage() {
                 </span>
               </div>
 
-              <p className="text-sm text-gray-600 mb-1">โต๊ะ: <span className="font-semibold">{order.table_number}</span></p>
-              <p className="text-sm text-gray-600 mb-1">ยอดรวม: <span className="font-semibold">{order.total_amount} ฿</span></p>
-              <p className="text-sm text-gray-600 mb-4">การชำระเงิน: <span className={`ml-2 px-2 py-1 rounded text-xs ${order.payment_status === 'paid' ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'}`}>{order.payment_status}</span></p>
+              <p className="text-lg text-gray-600 mb-2">โต๊ะ: <span className="font-semibold text-xl">{order.table_number}</span></p>
+              <p className="text-lg text-gray-600 mb-2">ยอดรวม: <span className="font-semibold text-xl">{order.total_amount} ฿</span></p>
+              <p className="text-lg text-gray-600 mb-4">การชำระเงิน: <span className={`ml-2 px-3 py-2 rounded text-base font-semibold ${order.payment_status === 'paid' ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'}`}>{order.payment_status}</span></p>
 
               <div className="flex justify-between items-center">
-                {order.status === 'pending' && <button className="bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors" onClick={() => handleViewItems(order)}>ดูรายละเอียด</button>}
+                {order.status === 'pending' && <button className="bg-blue-700 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors text-lg font-semibold" onClick={() => handleViewItems(order)}>ดูรายละเอียด</button>}
               </div>
             </div>
           ))}
