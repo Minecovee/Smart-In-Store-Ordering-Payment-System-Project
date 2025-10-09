@@ -194,23 +194,27 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
         <div
           key={menu.id}
           onClick={() => handleCardClick(menu)}
-          className={`w-[150px] bg-[#FFA559] rounded-lg shadow-md hover:shadow-lg transition-transform transform relative flex-shrink-0 ${clickedMenuIds.includes(menu.id) ? "scale-105" : "hover:scale-105"}`}
+          className={`w-[150px] h-[200px] bg-[#FFA559] rounded-lg shadow-md hover:shadow-lg transition-transform transform relative flex-shrink-0 flex flex-col ${clickedMenuIds.includes(menu.id) ? "scale-105" : "hover:scale-105"}`}
         >
           <img
             src={menu.image_url || "https://via.placeholder.com/400x300"}
             alt={menu.name}
-            className="w-full h-20 object-cover rounded-t-lg"
+            className="w-full h-25 object-cover rounded-t-lg"
             draggable={false}
           />
-          <div className="p-2">
-            <h3 className="text-sm font-semibold text-gray-100 line-clamp-1">{menu.name}</h3>
-            <p className="text-gray-200 text-xs line-clamp-2">{menu.description}</p>
-            <div className="mt-1 flex justify-between items-center min-w-[60px]">
-              <span className="text-sm font-bold text-[#26355D] truncate">
+          <div className="p-2 flex-1 flex flex-col">
+            <div>
+              <h3 className="text-sm font-semibold text-[#000000] line-clamp-1">{menu.name}</h3>
+              <p className="text-[#000000] text-xs line-clamp-2">{menu.description}</p>
+            </div>
+            
+            <div className="mt-auto flex justify-end">
+              <span className="text-sm font-bold text-[#26355D]">
                 ฿{parseFloat(menu.base_price).toFixed(2)}
               </span>
             </div>
           </div>
+          
           {clickedMenuIds.includes(menu.id) && (
             <div className="absolute top-1 right-1 bg-[#FF6500] text-gray-900 px-1 py-0.5 rounded animate-pulse text-xs">
               เพิ่มแล้ว!
@@ -219,6 +223,7 @@ export default function OrderFoodPage({ cart, setCart }: Props) {
         </div>
       ))}
     </div>
+
   </div>
 </div>
 

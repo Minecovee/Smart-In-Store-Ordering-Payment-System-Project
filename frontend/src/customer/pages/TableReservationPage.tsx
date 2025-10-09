@@ -54,12 +54,7 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
       {/* Top bar */}
       <div className="relative rounded-2xl border border-orange-400 bg-orange-400 px-4 sm:px-6 py-4 shadow-md flex-shrink-0">
         <div className="absolute top-4 right-4">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-orange-500 bg-white px-3 py-2 shadow-sm">
-            <span className="text-xs sm:text-sm text-gray-700">ประเภทผู้ใช้</span>
-            <span className="rounded-xl bg-orange-500 px-2 py-1 text-xs sm:text-sm font-semibold text-white">
-              {userType}
-            </span>
-          </div>
+          
         </div>
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">ร้านนายสมชาย</h1>
         <div className="mt-2 text-xs sm:text-sm md:text-base text-white">

@@ -127,7 +127,7 @@ export default function EmployeesPage() {
    <div className="p-6 bg-gray-50 min-h-screen space-y-6">
   {/* Header + Logout */}
   <div className="flex justify-between items-center mb-6">
-    <h1 className="text-3xl font-bold text-[#FF6500]">👨‍🍳 จัดการข้อมูลพนักงาน</h1>
+    <h1 className="text-3xl font-bold text-[#FF6500]"> จัดการข้อมูลพนักงาน</h1>
     <button
       onClick={handleLogout}
       className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-md transition"

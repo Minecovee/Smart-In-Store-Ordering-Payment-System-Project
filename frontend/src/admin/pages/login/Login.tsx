@@ -56,7 +56,7 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 font-sans text-gray-800">
   <div className="w-full max-w-sm bg-white shadow-xl rounded-3xl p-6">
-    <h2 className="text-2xl font-bold mb-6 text-center text-[#FF6500]">🔑 Login</h2>
+    <h2 className="text-2xl font-bold mb-6 text-center text-[#FF6500]"> Login</h2>
 
     <form onSubmit={handleLogin} className="flex flex-col gap-4">
       <input

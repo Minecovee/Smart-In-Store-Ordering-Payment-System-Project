@@ -134,7 +134,7 @@ export default function OrdersPage() {
       {selectedOrder && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-40">
           <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">🍽 รายการอาหาร</h2>
+            <h2 className="text-2xl font-bold mb-4"> รายการอาหาร</h2>
             <p className="mb-2 text-gray-700">โต๊ะ: <span className="font-semibold">{selectedOrder.table_number}</span></p>
             <p className="mb-4 text-gray-700">ยอดรวม: <span className="font-semibold">{selectedOrder.total_amount} ฿</span></p>
 
