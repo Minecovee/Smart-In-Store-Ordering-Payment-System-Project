@@ -1,9 +1,15 @@
 import { formatDateTime } from "../../utils/formatDateTime";
 import TableCard from "../../components/TableCard";
 import { useEffect, useMemo, useState } from "react";
-import { useTableController } from "../controllers/TableControllers";
 import { useNavigate } from "react-router-dom";
 import "../../css/Tablereserv.css";
+
+interface Table {
+  id: number;
+  table_number: number;
+  status: "free" | "occupied";
+  capacity: number;
+}
 
 interface Props {
   userType?: string;
@@ -11,7 +17,7 @@ interface Props {
 
 export default function TableReservationPage({ userType = "ลูกค้า" }: Props) {
   const [now, setNow] = useState(new Date());
-  const { tables, toggleTable } = useTableController(20);
+  const [tables, setTables] = useState<Table[]>([]);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [snackbar, setSnackbar] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -23,15 +29,31 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
     return () => clearInterval(tick);
   }, []);
 
+  // ดึงข้อมูลโต๊ะจาก backend
+  useEffect(() => {
+    fetchTables();
+  }, []);
+
+  const fetchTables = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/tables", {
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      setTables(data); // data ต้องเป็น array ของโต๊ะ
+    } catch (err) {
+      setSnackbar("ไม่สามารถโหลดข้อมูลโต๊ะได้");
+      setTimeout(() => setSnackbar(null), 3000);
+    }
+  };
+
   const handleTableSelect = (tableId: number, isOccupied: boolean) => {
     if (isOccupied) return;
 
     if (selectedTable === tableId) {
       setSelectedTable(null);
-      toggleTable(tableId, false);
     } else if (selectedTable === null) {
       setSelectedTable(tableId);
-      toggleTable(tableId, true);
     } else {
       setSnackbar("คุณสามารถเลือกโต๊ะได้ครั้งละ 1 โต๊ะเท่านั้น");
       setTimeout(() => setSnackbar(null), 3000);
@@ -53,10 +75,10 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
     <div className="flex flex-col min-h-screen bg-gray-50 md:p-6 text-gray-800 ">
       {/* Top bar */}
       <div className="relative rounded-2xl border border-orange-400 bg-orange-400 px-4 sm:px-6 py-4 shadow-md flex-shrink-0">
-        <div className="absolute top-4 right-4">
-          
-        </div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">ร้านนายสมชาย</h1>
+        <div className="absolute top-4 right-4"></div>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">
+          ร้านนายสมชาย
+        </h1>
         <div className="mt-2 text-xs sm:text-sm md:text-base text-white">
           เวลา: <span className="font-medium">{timeLabel}</span>
         </div>
@@ -69,7 +91,9 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
             <TableCard
               key={table.id}
               table={table}
-              onToggle={() => handleTableSelect(table.id, table.status !== "free")}
+              onToggle={() =>
+                handleTableSelect(table.id, table.status !== "free")
+              }
               isSelected={selectedTable === table.id}
               userType={userType}
             />
@@ -81,8 +105,7 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
       <div className="flex-shrink-0 flex justify-end mt-4">
         <button
           onClick={handleConfirm}
-          className="rounded-full bg-orange-500 px-6 py-3 text-white font-semibold shadow-lg hover:bg-orange-400 transition"
-        >
+          className="rounded-full bg-orange-500 px-6 py-3 text-white font-semibold shadow-lg hover:bg-orange-400 transition">
           ยืนยันการจอง
         </button>
       </div>
@@ -94,6 +117,5 @@ export default function TableReservationPage({ userType = "ลูกค้า" }
         </div>
       )}
     </div>
-
   );
 }

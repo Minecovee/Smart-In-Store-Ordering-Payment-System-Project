@@ -1026,7 +1026,34 @@ def get_dashboard(current_user):
         if conn:
             conn.close()
 
+@app.route('/api/tables', methods=['GET'])
+def get_tables():
+    # ดึงข้อมูลโต๊ะทั้งหมดจากฐานข้อมูล
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM tables")
+    tables = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(tables)
 
+@app.route('/api/tables/<int:table_id>', methods=['PATCH'])
+def update_table_status(table_id):
+    data = request.get_json()
+    new_status = data.get('status')
+    if new_status not in ['free', 'occupied']:
+        return jsonify({'error': 'Invalid status'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE tables SET status=%s, updated_at=NOW() WHERE id=%s",
+        (new_status, table_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     # Running the app in debug mode makes it restart automatically on code changes
